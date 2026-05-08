@@ -301,3 +301,59 @@ function shiftYear(reportMonth: string, yearDelta: number): string {
   if (!Number.isFinite(year) || !monthPart) return reportMonth;
   return `${year + yearDelta}-${monthPart}`;
 }
+
+export type PortfolioInsight = {
+  totalMonthsCompared: number;
+  monthsAhead: number;
+  monthsBehind: number;
+  averageDeltaPct: number | null;
+};
+
+export function buildPortfolioInsight(series: PortfolioComparisonChartPoint[]): PortfolioInsight {
+  let monthsAhead = 0;
+  let monthsBehind = 0;
+  let deltaSum = 0;
+  let deltaCount = 0;
+
+  for (const point of series) {
+    if (point.currentYearYieldKwh === null || point.previousYearSameMonthYieldKwh === null) continue;
+    if (point.currentYearYieldKwh >= point.previousYearSameMonthYieldKwh) {
+      monthsAhead++;
+    } else {
+      monthsBehind++;
+    }
+    if (point.previousYearSameMonthYieldKwh > 0) {
+      deltaSum += (point.currentYearYieldKwh - point.previousYearSameMonthYieldKwh) / point.previousYearSameMonthYieldKwh;
+      deltaCount++;
+    }
+  }
+
+  return {
+    totalMonthsCompared: monthsAhead + monthsBehind,
+    monthsAhead,
+    monthsBehind,
+    averageDeltaPct: deltaCount > 0 ? deltaSum / deltaCount : null,
+  };
+}
+
+export type MonthDelta = {
+  deltaAbsKwh: number | null;
+  deltaPct: number | null;
+  previousYearKwh: number | null;
+};
+
+export function findMonthDelta(
+  series: PortfolioMonthlySeriesPoint[],
+  reportMonth: string,
+): MonthDelta | null {
+  const point = series.find((p) => p.month === reportMonth);
+  if (!point) return null;
+  return {
+    deltaAbsKwh:
+      point.totalYieldKwh !== null && point.previousYearTotalYieldKwh !== null
+        ? point.totalYieldKwh - point.previousYearTotalYieldKwh
+        : null,
+    deltaPct: point.deltaPct,
+    previousYearKwh: point.previousYearTotalYieldKwh,
+  };
+}

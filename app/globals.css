@@ -2225,3 +2225,76 @@ body {
   .trend-chart { min-width: 620px; min-height: 280px; }
 }
 
+/* === Phase 2: Chart insight polish ============================= */
+
+.chart-insight-line {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+.chart-insight-line--good { color: var(--good); }
+.chart-insight-line--bad  { color: var(--bad); }
+.chart-insight-line--neutral { color: var(--ink-muted); }
+
+.chart-insight {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+/* Selected month highlight in portfolio chart */
+.portfolio-chart__point--selected {
+  stroke: #fff;
+  stroke-width: 3;
+}
+.portfolio-chart__point--selected-current {
+  fill: var(--primary-strong);
+  filter: drop-shadow(0 0 5px rgba(95, 63, 186, 0.45));
+}
+.portfolio-chart__point--selected-previous {
+  fill: #8a7eaa;
+  filter: drop-shadow(0 0 5px rgba(138, 126, 170, 0.4));
+}
+
+/* Differentiated legend pills: current year more prominent */
+.portfolio-chart__legend-item--current {
+  color: var(--primary-strong);
+  border-color: rgba(124, 92, 211, 0.35);
+  background: rgba(124, 92, 211, 0.1);
+  font-weight: 800;
+}
+.portfolio-chart__legend-item--previous {
+  color: var(--ink-soft);
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+}
+
+/* KPI tiers (site detail page) */
+.detail-kpi--primary  .detail-kpi__value { font-size: clamp(28px, 3.5vw, 40px); }
+.detail-kpi--secondary .detail-kpi__value { font-size: clamp(20px, 2.5vw, 28px); color: var(--ink-muted); }
+
+/* Secondary comparison row (risk cards) */
+.comparison-row--secondary { font-size: 12px; color: var(--ink-soft); }
+
+/* Recovery indicator in risk cards */
+.recovery-indicator { font-size: 12px; font-weight: 700; color: var(--good); }
+
+/* Action item bullets in risk/diagnosis section */
+.action-item {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  border-left: 3px solid var(--primary);
+  list-style: none;
+}
+
+/* Selected row highlight in history table */
+tr[data-selected="true"] td { background: var(--primary-soft) !important; }
+
+/* Import section wrapper */
+.import-section-wrapper { }
+.import-section-wrapper--collapsed .import-card { display: none; }
+

@@ -20,8 +20,10 @@ import {
 import {
   buildPortfolioChartScale,
   buildPortfolioComparisonPoints,
+  buildPortfolioInsight,
   type PortfolioComparisonChartPoint,
   type PortfolioChartScale,
+  type PortfolioInsight,
 } from "../lib/analytics";
 
 import {
@@ -260,6 +262,12 @@ export function SolarDashboard() {
   const portfolioChartHasData = portfolioChartPoints.some(
     (point) => point.currentYearYieldKwh !== null || point.previousYearSameMonthYieldKwh !== null,
   );
+  const portfolioInsight = useMemo(() => buildPortfolioInsight(portfolioChartPoints), [portfolioChartPoints]);
+  const selectedMonthNumber = useMemo(() => {
+    if (!selectedMonth) return null;
+    const n = Number(selectedMonth.split("-")[1]);
+    return Number.isFinite(n) && n >= 1 && n <= 12 ? n : null;
+  }, [selectedMonth]);
 
   const columns = useMemo<ColumnDef<SiteTableRow>[]>(
     () => [
@@ -462,6 +470,8 @@ export function SolarDashboard() {
         points={portfolioChartPoints}
         scale={portfolioChartScale}
         hasData={portfolioChartHasData}
+        insight={portfolioInsight}
+        selectedMonthNumber={selectedMonthNumber}
       />
 
       <section aria-labelledby="attention-heading" className="section-block">
@@ -756,21 +766,29 @@ function PortfolioComparisonChart({
   points,
   scale,
   hasData,
+  insight,
+  selectedMonthNumber,
 }: {
   currentYear: number | null;
   points: PortfolioComparisonChartPoint[];
   scale: PortfolioChartScale;
   hasData: boolean;
+  insight?: PortfolioInsight | null;
+  selectedMonthNumber?: number | null;
 }) {
   const currentPath = buildChartPath(points, (point) => point.currentYearYieldKwh, scale);
   const previousPath = buildChartPath(points, (point) => point.previousYearSameMonthYieldKwh, scale);
   const currentTitle = currentYear ? `ปีล่าสุด (${formatYearLabel(currentYear)})` : "ปีล่าสุด";
+  const insightText = insight && insight.totalMonthsCompared >= 2 ? formatPortfolioInsight(insight) : null;
+  const insightClass = !insight || !insightText ? "" :
+    insight.monthsAhead >= insight.monthsBehind ? "chart-insight-line--good" : "chart-insight-line--bad";
 
   return (
     <section className="section-block" aria-labelledby="portfolio-chart-heading">
       <div className="section-head">
         <div>
           <h2 id="portfolio-chart-heading">ผลผลิตรวมทุกไซต์เทียบเดือนเดียวกันปีก่อน</h2>
+          {insightText && <p className={`chart-insight-line ${insightClass}`}>{insightText}</p>}
         </div>
         <p className="section-note">เส้นสีม่วงคือ{currentTitle} · เส้นสีเทาอ่อนคือเดือนเดียวกันของปีก่อน</p>
       </div>
@@ -808,6 +826,23 @@ function PortfolioComparisonChart({
                   y2={scale.height - scale.padding.bottom}
                   className="portfolio-chart__axis"
                 />
+                {/* Y-axis reference labels */}
+                {([0, 0.5, 1] as const).map((ratio) => {
+                  const value = ratio * scale.yMax;
+                  const y = scale.yForValue(value);
+                  if (y === null) return null;
+                  return (
+                    <text
+                      key={ratio}
+                      x={scale.padding.left - 6}
+                      y={y + 4}
+                      textAnchor="end"
+                      className="portfolio-chart__label"
+                    >
+                      {formatAxisKwh(value)}
+                    </text>
+                  );
+                })}
                 <path d={currentPath} className="portfolio-chart__line portfolio-chart__line--current" />
                 <path d={previousPath} className="portfolio-chart__line portfolio-chart__line--previous" />
                 {points.flatMap((point) => {
@@ -842,6 +877,24 @@ function PortfolioComparisonChart({
 
                   return dots;
                 })}
+                {/* Selected month highlight — rendered on top of regular dots */}
+                {selectedMonthNumber !== null && selectedMonthNumber !== undefined && (() => {
+                  const point = points.find((p) => p.monthNumber === selectedMonthNumber);
+                  if (!point) return null;
+                  const x = scale.xForMonth(point.monthNumber);
+                  const currentY = scale.yForValue(point.currentYearYieldKwh);
+                  const previousY = scale.yForValue(point.previousYearSameMonthYieldKwh);
+                  return (
+                    <>
+                      {currentY !== null && (
+                        <circle cx={x} cy={currentY} r="7" className="portfolio-chart__point portfolio-chart__point--selected portfolio-chart__point--selected-current" />
+                      )}
+                      {previousY !== null && (
+                        <circle cx={x} cy={previousY} r="7" className="portfolio-chart__point portfolio-chart__point--selected portfolio-chart__point--selected-previous" />
+                      )}
+                    </>
+                  );
+                })()}
                 {points.map((point) => (
                   <text
                     key={`label-${point.monthNumber}`}
@@ -915,6 +968,24 @@ function buildChartPath(
   }
 
   return commands.join(" ");
+}
+
+function formatAxisKwh(value: number): string {
+  if (value === 0) return "0";
+  if (value >= 1000) return `${Math.round(value / 1000)}k`;
+  return Math.round(value).toString();
+}
+
+function formatPortfolioInsight(insight: PortfolioInsight): string {
+  const total = insight.totalMonthsCompared;
+  const avgStr =
+    insight.averageDeltaPct !== null
+      ? ` (เฉลี่ย ${insight.averageDeltaPct >= 0 ? "+" : ""}${(insight.averageDeltaPct * 100).toFixed(1)}%)`
+      : "";
+  if (insight.monthsAhead >= insight.monthsBehind) {
+    return `ปีนี้อยู่เหนือปีก่อน ${insight.monthsAhead} จาก ${total} เดือน${avgStr}`;
+  }
+  return `ปีนี้อยู่ต่ำกว่าปีก่อน ${insight.monthsBehind} จาก ${total} เดือน${avgStr}`;
 }
 
 function LoadingScreen() {
