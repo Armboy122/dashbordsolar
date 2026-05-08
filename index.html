@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PEA Solar Ops</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <!-- ── Top Nav ── -->
+  <header class="topnav">
+    <div class="topnav-inner">
+
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+          </svg>
+        </div>
+        <div>
+          <span class="brand-name">PEA Solar Ops</span>
+          <span class="brand-sub">ติดตามการผลิตไฟฟ้า</span>
+        </div>
+      </div>
+
+      <nav class="nav-links" aria-label="เมนูหลัก">
+        <a href="#overview" class="nav-link">ภาพรวม</a>
+        <a href="#alerts"   class="nav-link">แจ้งเตือน</a>
+        <a href="#compare"  class="nav-link">เปรียบเทียบ</a>
+        <a href="#annual"   class="nav-link">รายปี</a>
+        <a href="#rawdata"  class="nav-link">ตาราง</a>
+      </nav>
+
+      <div class="nav-actions">
+        <div id="periodSelectorWrap" class="nav-select-wrap" hidden>
+          <select id="periodSelect" class="nav-select"></select>
+        </div>
+        <label class="btn btn-upload" for="reportFiles">
+          <input id="reportFiles" type="file" accept=".xlsx,.xls" multiple />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          อัปโหลด Excel
+        </label>
+        <button id="demoButton" class="btn btn-ghost">ดูตัวอย่าง</button>
+      </div>
+
+    </div>
+    <p id="fileInfo" class="nav-file-info"></p>
+  </header>
+
+  <!-- ── Page ── -->
+  <main class="page">
+
+    <!-- Hero -->
+    <div class="page-hero">
+      <div>
+        <p class="eyebrow">PEA — O&amp;M Solar Portfolio</p>
+        <h1>ภาพรวมการผลิตไฟฟ้าโซลาร์</h1>
+      </div>
+      <span id="periodDisplay" class="period-chip">ยังไม่มีข้อมูล</span>
+    </div>
+
+    <!-- ── 1. KPIs ── -->
+    <section id="overview" class="kpi-row" aria-label="ตัวชี้วัดหลัก">
+
+      <article class="kpi-card">
+        <span class="kpi-label">ไซต์ทั้งหมด</span>
+        <strong id="kpi-sites" class="kpi-num">—</strong>
+        <span class="kpi-unit">แห่ง</span>
+      </article>
+
+      <article class="kpi-card kpi-accent">
+        <span class="kpi-label">ผลิตไฟฟ้าเดือนนี้</span>
+        <strong id="kpi-yield" class="kpi-num">—</strong>
+        <span class="kpi-unit">Inverter Yield รวม</span>
+      </article>
+
+      <article class="kpi-card" id="kpi-mom-card">
+        <span class="kpi-label">เทียบเดือนก่อน</span>
+        <strong id="kpi-mom" class="kpi-num kpi-delta">—</strong>
+        <span class="kpi-unit" id="kpi-mom-sub">—</span>
+      </article>
+
+      <article class="kpi-card" id="kpi-zero-card">
+        <span class="kpi-label">ไม่มีการผลิต</span>
+        <strong id="kpi-zero" class="kpi-num">—</strong>
+        <span class="kpi-unit">ไซต์ต้องตรวจสอบ</span>
+      </article>
+
+    </section>
+
+    <!-- Glossary -->
+    <details class="glossary">
+      <summary>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+        </svg>
+        คำอธิบายค่าที่ใช้ในระบบ
+      </summary>
+      <div class="glossary-grid">
+        <div class="gterm"><strong>Inverter Yield (kWh)</strong><span>ไฟฟ้าที่ผลิตได้จริงหลังผ่าน Inverter — <em>ตัวเลขที่สำคัญที่สุด</em> บอกว่าผลิตได้จริงเท่าไหร่</span></div>
+        <div class="gterm"><strong>PV Yield (kWh)</strong><span>ไฟฟ้าสูงสุดที่แผงโซลาร์ผลิตได้ก่อนผ่าน Inverter มักสูงกว่า Inverter Yield เล็กน้อย</span></div>
+        <div class="gterm"><strong>Capacity (kWp)</strong><span>ขนาดของระบบโซลาร์ (กิโลวัตต์พีค) กำหนดตั้งแต่ติดตั้ง ใช้คำนวณ Specific Energy</span></div>
+        <div class="gterm"><strong>Specific Energy (kWh/kWp)</strong><span>ประสิทธิภาพ — ผลิตได้กี่หน่วยต่อขนาด 1 kWp ใช้เปรียบเทียบข้ามไซต์ที่มีขนาดต่างกัน</span></div>
+        <div class="gterm"><strong>Export (kWh)</strong><span>ไฟฟ้าที่ขายคืนให้การไฟฟ้า ส่วนที่เกินจากการใช้เองในอาคาร</span></div>
+        <div class="gterm"><strong>Self-consumption (kWh)</strong><span>ไฟฟ้าที่ใช้เองภายในอาคาร ไม่ผ่านมิเตอร์ขาย</span></div>
+        <div class="gterm"><strong>เทียบเดือนก่อน (MoM)</strong><span>Inverter Yield เดือนนี้ vs เดือนก่อน — <em>บวก = ผลิตเพิ่ม, ลบ = ผลิดลด</em></span></div>
+        <div class="gterm"><strong>ค่าเฉลี่ยตั้งแต่ติดตั้ง</strong><span>ค่าเฉลี่ย Inverter Yield ของไซต์นั้นทุกเดือนนับตั้งแต่เดือนแรกที่มีข้อมูล</span></div>
+        <div class="gterm"><strong>เทียบปีก่อน (YoY)</strong><span>Inverter Yield เดือนเดียวกันแต่ปีที่แล้ว เช่น มี.ค. 68 เทียบกับ มี.ค. 67</span></div>
+      </div>
+    </details>
+
+    <!-- ── 2. Alerts ── -->
+    <section id="alerts" class="section-block">
+      <div class="section-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        แจ้งเตือน
+      </div>
+      <div class="alert-row">
+
+        <div class="alert-card alert-card--red">
+          <div class="alert-card-head">
+            <div>
+              <p class="alert-tag-label">ด่วน — ต้องตรวจสอบ</p>
+              <h2>ไซต์ที่ไม่มีการผลิต</h2>
+              <p class="alert-desc">Inverter Yield = 0 หรือไม่มีข้อมูลในเดือนนี้</p>
+            </div>
+            <span class="count-chip count-chip--red" id="zeroCount">0 ไซต์</span>
+          </div>
+          <div id="zeroList" class="alert-list">
+            <p class="empty-sm">ทุกไซต์มีการผลิตในเดือนนี้ ✓</p>
+          </div>
+        </div>
+
+        <div class="alert-card alert-card--orange">
+          <div class="alert-card-head">
+            <div>
+              <p class="alert-tag-label">ระวัง — ลดลงผิดปกติ</p>
+              <h2>ลดลงจากเดือนก่อนเกิน 20%</h2>
+              <p class="alert-desc">เทียบ Inverter Yield เดือนนี้กับเดือนก่อน</p>
+            </div>
+            <span class="count-chip count-chip--orange" id="dropCount">0 ไซต์</span>
+          </div>
+          <div id="dropList" class="alert-list">
+            <p class="empty-sm">ไม่มีไซต์ที่ลดลงเกิน 20% ✓</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ── 3. Compare ── -->
+    <section id="compare" class="section-block">
+      <div class="section-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        เปรียบเทียบการผลิต
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>Inverter Yield ต่อไซต์</h2>
+            <p class="card-sub">เปรียบเทียบกับเดือนก่อน · ค่าเฉลี่ยตั้งแต่ติดตั้ง · เดือนเดียวกันปีก่อน</p>
+          </div>
+          <div class="delta-legend">
+            <span class="dl dl--up">▲ เพิ่มขึ้น / ปกติ</span>
+            <span class="dl dl--warn">▼ ลดบ้าง</span>
+            <span class="dl dl--dn">▼▼ ลดมาก</span>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="col-site">ไซต์</th>
+                <th class="col-num">เดือนนี้<br/><span class="th-sub">kWh</span></th>
+                <th class="col-num">เดือนก่อน<br/><span class="th-sub">kWh</span></th>
+                <th class="col-delta">เทียบเดือนก่อน</th>
+                <th class="col-num">ค่าเฉลี่ยทั้งหมด<br/><span class="th-sub">kWh</span></th>
+                <th class="col-delta">เทียบค่าเฉลี่ย</th>
+                <th class="col-num">ปีก่อน (เดือนนี้)<br/><span class="th-sub">kWh</span></th>
+                <th class="col-delta">เทียบปีก่อน</th>
+              </tr>
+            </thead>
+            <tbody id="compareBody">
+              <tr><td colspan="8" class="td-empty">อัปโหลดไฟล์หรือกดดูตัวอย่างเพื่อเริ่มต้น</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 4. Annual ── -->
+    <section id="annual" class="section-block">
+      <div class="section-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        ยอดผลิตรายปี
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>Inverter Yield รายปี</h2>
+            <p class="card-sub">เลือกปีที่ต้องการดูรายละเอียดการผลิตรายเดือน</p>
+          </div>
+          <div id="yearTabs" class="year-tabs"></div>
+        </div>
+
+        <div class="annual-kpi-row">
+          <div class="annual-kpi-item">
+            <span>รวมทั้งปี</span>
+            <strong id="annualTotal">—</strong>
+          </div>
+          <div class="annual-kpi-sep"></div>
+          <div class="annual-kpi-item">
+            <span>เดือนที่มีข้อมูล</span>
+            <strong id="annualMonths">—</strong>
+          </div>
+          <div class="annual-kpi-sep"></div>
+          <div class="annual-kpi-item">
+            <span>เฉลี่ยต่อเดือน</span>
+            <strong id="annualAvgMonth">—</strong>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="annualChart" aria-label="กราฟยอดผลิตรายเดือน"></canvas>
+        </div>
+
+        <div class="table-scroll" style="margin-top:20px">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="col-site">ไซต์</th>
+                <th class="col-num" id="annualYearLabel">รวมทั้งปี (kWh)</th>
+                <th class="col-num">เดือนที่มีข้อมูล</th>
+                <th class="col-num">เฉลี่ยต่อเดือน (kWh)</th>
+              </tr>
+            </thead>
+            <tbody id="annualSiteTable">
+              <tr><td colspan="4" class="td-empty">รอข้อมูล</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 5. Raw Data ── -->
+    <section id="rawdata" class="section-block">
+      <div class="section-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        ตารางข้อมูล
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>ข้อมูลดิบรายเดือน</h2>
+            <p class="card-sub">ค่าทั้งหมดที่อ่านจาก Excel ของเดือนที่เลือก</p>
+          </div>
+          <div class="search-wrap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input id="searchBox" type="search" placeholder="ค้นหาไซต์…" />
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="col-site">ไซต์</th>
+                <th class="col-num">Inverter Yield<br/><span class="th-sub">ผลิตได้จริง (kWh)</span></th>
+                <th class="col-num">PV Yield<br/><span class="th-sub">สูงสุดจากแผง (kWh)</span></th>
+                <th class="col-num">Capacity<br/><span class="th-sub">ขนาดระบบ (kWp)</span></th>
+                <th class="col-num">Specific Energy<br/><span class="th-sub">kWh/kWp</span></th>
+                <th class="col-num">Export<br/><span class="th-sub">ขายการไฟฟ้า (kWh)</span></th>
+                <th class="col-num">Self-use<br/><span class="th-sub">ใช้ในอาคาร (kWh)</span></th>
+                <th class="col-num">Revenue<br/><span class="th-sub">รายได้ (฿)</span></th>
+              </tr>
+            </thead>
+            <tbody id="plantTable">
+              <tr><td colspan="8" class="td-empty">รอข้อมูลจาก Excel</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main><!-- /page -->
+
+  <script src="./app.js"></script>
+</body>
+</html>
