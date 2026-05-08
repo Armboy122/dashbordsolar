@@ -2225,3 +2225,108 @@ body {
   .trend-chart { min-width: 620px; min-height: 280px; }
 }
 
+/* ── Phase 2: Hero + KPI Polish ───────────────────────────── */
+
+/* Alert banner */
+.alert-banner {
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.alert-banner--urgent {
+  border-left: 4px solid var(--bad);
+  background: rgba(182, 90, 114, 0.06);
+  color: var(--bad);
+}
+.alert-banner--watch {
+  border-left: 4px solid var(--warn);
+  background: rgba(154, 131, 84, 0.06);
+  color: var(--warn);
+}
+
+/* Chart insight line */
+.chart-insight-line {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+.chart-insight-line--good { color: var(--good); }
+.chart-insight-line--bad  { color: var(--bad); }
+.chart-insight-line--neutral { color: var(--ink-muted); }
+
+/* KPI delta line inside summary cards */
+.summary-card__delta {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  margin: 0;
+}
+.summary-card__delta--up   { color: var(--good); }
+.summary-card__delta--down { color: var(--bad); }
+.summary-card__delta--flat { color: var(--ink-muted); }
+
+/* KPI tier hierarchy for site detail */
+.detail-kpi--primary  .detail-kpi__value { font-size: clamp(28px, 3.5vw, 40px); }
+.detail-kpi--secondary .detail-kpi__value { font-size: clamp(20px, 2.5vw, 28px); color: var(--ink-muted); }
+
+/* Action item bullets in risk / diagnosis section */
+.action-item {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  border-left: 3px solid var(--primary);
+  list-style: none;
+}
+
+/* Secondary comparison row (MoM) */
+.comparison-row--secondary {
+  font-size: 12px;
+  color: var(--ink-soft);
+  padding: 6px 10px;
+}
+.comparison-row--secondary .comparison-row__label {
+  font-size: 10px;
+}
+.comparison-row--secondary .comparison-row__value {
+  font-size: 12px;
+  font-weight: 600;
+}
+.comparison-row--secondary .comparison-row__baseline {
+  font-size: 10px;
+}
+
+/* Recovery indicator on risk cards */
+.recovery-indicator {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--good);
+  white-space: nowrap;
+}
+
+/* Selected row in history table */
+tr[data-selected="true"] td { background: var(--primary-soft) !important; }
+
+/* Import section collapsible wrapper */
+.import-section-wrapper { display: flex; flex-direction: column; gap: 0; }
+.import-section-wrapper--collapsed .import-card { display: none; }
+
+/* Comparison cell: abs kWh secondary line */
+.comparison-cell__pct {
+  font-weight: 700;
+  display: block;
+}
+.comparison-cell__abs {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  display: block;
+  line-height: 14px;
+  margin-top: 2px;
+}
+

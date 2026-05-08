@@ -20,8 +20,11 @@ import {
 import {
   buildPortfolioChartScale,
   buildPortfolioComparisonPoints,
+  buildPortfolioInsight,
+  findMonthDelta,
   type PortfolioComparisonChartPoint,
   type PortfolioChartScale,
+  type PortfolioMonthlySeriesPoint,
 } from "../lib/analytics";
 
 import {
@@ -108,6 +111,8 @@ export function SolarDashboard() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const importRef = useRef<HTMLDivElement>(null);
   const dashboardAbortRef = useRef<AbortController | null>(null);
   const dashboardRequestRef = useRef(0);
 
@@ -157,6 +162,11 @@ export function SolarDashboard() {
       dashboardAbortRef.current?.abort();
     };
   }, [loadDashboard]);
+
+  function openImport() {
+    setIsImportOpen(true);
+    setTimeout(() => importRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+  }
 
   function resetImportState() {
     setImportRows([]);
@@ -234,6 +244,7 @@ export function SolarDashboard() {
       }
 
       setImportSuccess(`นำเข้าไฟล์ ${importState.fileName} สำเร็จแล้ว`);
+      setIsImportOpen(false);
       await loadDashboard(payload.reportMonth);
       resetImportState();
     } catch (submitError) {
@@ -260,6 +271,24 @@ export function SolarDashboard() {
   const portfolioChartHasData = portfolioChartPoints.some(
     (point) => point.currentYearYieldKwh !== null || point.previousYearSameMonthYieldKwh !== null,
   );
+
+  const monthDelta = useMemo(() => {
+    const series = data?.portfolioMonthlySeries ?? [];
+    const raw = findMonthDelta(series as PortfolioMonthlySeriesPoint[], selectedMonth);
+    if (!raw || raw.deltaAbsKwh === null || raw.deltaPct === null) return null;
+    return { abs: raw.deltaAbsKwh, pct: raw.deltaPct };
+  }, [data?.portfolioMonthlySeries, selectedMonth]);
+
+  const portfolioInsight = useMemo(() => buildPortfolioInsight(portfolioChartPoints), [portfolioChartPoints]);
+
+  const availableMonthsInYear = useMemo(
+    () => (data?.portfolioMonthlySeries ?? []).filter((p) => p.year === effectiveYear && p.totalYieldKwh !== null).length,
+    [data?.portfolioMonthlySeries, effectiveYear],
+  );
+
+  const attentionCount = useMemo(() => monitoringRows.filter((r) => r.status === "attention").length, [monitoringRows]);
+  const watchCount = useMemo(() => monitoringRows.filter((r) => r.status === "watch").length, [monitoringRows]);
+  const reviewCount = useMemo(() => monitoringRows.filter((r) => r.status === "review").length, [monitoringRows]);
 
   const columns = useMemo<ColumnDef<SiteTableRow>[]>(
     () => [
@@ -309,32 +338,59 @@ export function SolarDashboard() {
       },
       {
         id: "vsLastMonthPct",
-        header: siteTableHeaderLabels.vsLastMonthPct,
+        header: "เดือนก่อน",
         accessorKey: "vsLastMonthPct",
         sortingFn: nullsLastSort,
-        cell: ({ getValue }) => {
-          const v = getValue<number | null>();
-          return v === null ? <NoDataCell /> : formatSignedPercent(v);
+        cell: ({ row }) => {
+          const pct = row.original.vsLastMonthPct;
+          const abs = row.original.comparison.mom.deltaAbsKwh;
+          if (pct === null) return <NoDataCell />;
+          return (
+            <>
+              <span className="comparison-cell__pct">{formatSignedPercent(pct)}</span>
+              {abs !== null && (
+                <span className="comparison-cell__abs">{abs >= 0 ? "+" : ""}{formatNumber(abs)} kWh</span>
+              )}
+            </>
+          );
         },
       },
       {
         id: "vsSiteAvgPct",
-        header: siteTableHeaderLabels.vsSiteAvgPct,
+        header: "ค่าเฉลี่ยไซต์",
         accessorKey: "vsSiteAvgPct",
         sortingFn: nullsLastSort,
-        cell: ({ getValue }) => {
-          const v = getValue<number | null>();
-          return v === null ? <NoDataCell /> : formatSignedPercent(v);
+        cell: ({ row }) => {
+          const pct = row.original.vsSiteAvgPct;
+          const abs = row.original.comparison.siteAvg.deltaAbsKwh;
+          if (pct === null) return <NoDataCell />;
+          return (
+            <>
+              <span className="comparison-cell__pct">{formatSignedPercent(pct)}</span>
+              {abs !== null && (
+                <span className="comparison-cell__abs">{abs >= 0 ? "+" : ""}{formatNumber(abs)} kWh</span>
+              )}
+            </>
+          );
         },
       },
       {
         id: "vsLastYearPct",
-        header: siteTableHeaderLabels.vsLastYearPct,
+        header: "YoY (ปีก่อน)",
         accessorKey: "vsLastYearPct",
         sortingFn: nullsLastSort,
-        cell: ({ getValue }) => {
-          const v = getValue<number | null>();
-          return v === null ? <NoDataCell /> : formatSignedPercent(v);
+        cell: ({ row }) => {
+          const pct = row.original.vsLastYearPct;
+          const abs = row.original.comparison.yoy.deltaAbsKwh;
+          if (pct === null) return <NoDataCell />;
+          return (
+            <>
+              <span className="comparison-cell__pct">{formatSignedPercent(pct)}</span>
+              {abs !== null && (
+                <span className="comparison-cell__abs">{abs >= 0 ? "+" : ""}{formatNumber(abs)} kWh</span>
+              )}
+            </>
+          );
         },
       },
     ],
@@ -400,42 +456,37 @@ export function SolarDashboard() {
               ))}
             </select>
           </label>
+          <Button icon={<CloudUploadOutlined />} onClick={openImport} size="small">
+            นำเข้ารายงาน
+          </Button>
         </div>
       </header>
 
-      <ImportPanel
-        fileName={importState.fileName}
-        inferredMonth={importState.inferredMonth}
-        reportMonth={importState.reportMonth}
-        rowCount={importState.rowCount}
-        siteNames={importState.siteNames}
-        importing={importing}
-        importError={importError}
-        importSuccess={importSuccess}
-        canSubmit={importRows.length > 0 && isValidReportMonth(importState.reportMonth) && !importing}
-        onFileChange={handleImportFileChange}
-        onReportMonthChange={handleImportMonthChange}
-        onSubmit={handleImportSubmit}
-      />
+      <AlertBanner attention={attentionCount} watch={watchCount} review={reviewCount} />
+
+      {importSuccess && !isImportOpen && (
+        <Alert type="success" message={importSuccess} showIcon closable onClose={() => setImportSuccess(null)} />
+      )}
 
       <section className="summary-grid" aria-label="สรุปผลผลิต">
         <SummaryCard
           label={`เดือนนี้ (${monthLabel})`}
           value={formatNumber(data.portfolio.monthlyYieldKwh)}
           unit="kWh"
+          delta={monthDelta}
           note={`สะสม: ${formatNumber(data.portfolio.cumulativeYieldKwh)} kWh`}
         />
         <SummaryCard
           label={data.portfolio.latestYear ? `ปีล่าสุด (${formatYearLabel(data.portfolio.latestYear)})` : "ปีล่าสุด"}
           value={formatNumber(latestYearTotal)}
           unit="kWh"
-          note="ปีล่าสุด"
+          note={data.portfolio.latestYear ? `${formatYearLabel(data.portfolio.latestYear)}: ผลรวมปีนี้` : "ปีล่าสุด"}
         />
         <SummaryCard
           label="ปีที่เลือก"
           value={formatNumber(yearSelection?.yieldKwh ?? null)}
           unit="kWh"
-          note={yearLabel}
+          note={availableMonthsInYear > 0 ? `จาก ${availableMonthsInYear} เดือน` : yearLabel}
           control={
             <label className="summary-card__select">
               <span className="visually-hidden">เลือกปี</span>
@@ -453,7 +504,7 @@ export function SolarDashboard() {
           label="กำลังติดตั้งรวม"
           value={formatNumber(data.portfolio.installedCapacityKwp)}
           unit="kWp"
-          note="ทุกไซต์"
+          note={`${data.meta.siteCount} ไซต์`}
         />
       </section>
 
@@ -462,49 +513,58 @@ export function SolarDashboard() {
         points={portfolioChartPoints}
         scale={portfolioChartScale}
         hasData={portfolioChartHasData}
+        insight={portfolioInsight}
       />
 
       <section aria-labelledby="attention-heading" className="section-block">
         <div className="section-head">
           <div>
-            <h2 id="attention-heading">ไซต์ที่ต้องเฝ้าระวัง</h2>
+            <h2 id="attention-heading">ศูนย์ควบคุมความเสี่ยง (Risk Command Center)</h2>
           </div>
-          <p className="section-note">แสดงเฉพาะไซต์ที่มีสัญญาณผิดปกติหรือข้อมูลไม่ครบ</p>
+          <p className="section-note">แสดงเฉพาะไซต์ที่ต้องดำเนินการ จัดเรียงตามความเร่งด่วน</p>
         </div>
 
         {monitoringRows.length === 0 ? (
           <div className="empty-state empty-state--soft">
-            <p className="empty-state__title">ยังไม่มีไซต์ที่ต้องเฝ้าระวัง</p>
-            <p className="empty-state__text">เดือนนี้ทุกไซต์อยู่ในเกณฑ์ปกติ</p>
+            <p className="empty-state__title">เดือนนี้ทุกไซต์อยู่ในเกณฑ์ปกติ ✓</p>
+            <p className="empty-state__text">ไม่มีไซต์ที่ต้องดำเนินการในขณะนี้</p>
           </div>
         ) : (
           <div className="risk-list">
-            {monitoringRows.map((row) => (
-              <Link
-                key={row.siteId}
-                href={`/sites/${encodeURIComponent(row.siteName)}?month=${encodeURIComponent(data.selectedMonth)}`}
-                className={`risk-card risk-card--${row.status}`}
-              >
-                <div className="risk-card__top">
-                  <StatusTag status={row.status} />
-                  <span className="risk-card__yield">{row.monthYieldKwh === null ? "ไม่มีข้อมูล" : `${formatNumber(row.monthYieldKwh)} kWh`}</span>
-                </div>
+            {monitoringRows.map((row) => {
+              const isRecovering =
+                row.comparison.mom.deltaPct !== null &&
+                row.comparison.mom.deltaPct > 0 &&
+                ((row.comparison.yoy.deltaPct !== null && row.comparison.yoy.deltaPct < 0) ||
+                  (row.comparison.siteAvg.deltaPct !== null && row.comparison.siteAvg.deltaPct < 0));
+              return (
+                <Link
+                  key={row.siteId}
+                  href={`/sites/${encodeURIComponent(row.siteName)}?month=${encodeURIComponent(data.selectedMonth)}`}
+                  className={`risk-card risk-card--${row.status}`}
+                >
+                  <div className="risk-card__top">
+                    <StatusTag status={row.status} />
+                    <span className="risk-card__yield">{row.monthYieldKwh === null ? "ไม่มีข้อมูล" : `${formatNumber(row.monthYieldKwh)} kWh`}</span>
+                    {isRecovering && <span className="recovery-indicator">↑ ฟื้นจากเดือนก่อน</span>}
+                  </div>
 
-                <div className="risk-card__body">
-                  <h3>{row.siteName}</h3>
-                  <p className="risk-card__caption">
-                    {row.capacityKwp === null ? "ยังไม่ระบุกำลังติดตั้ง" : `${formatNumber(row.capacityKwp)} kWp`}
-                  </p>
-                  <p className="risk-card__reason">{row.reason}</p>
-                </div>
+                  <div className="risk-card__body">
+                    <h3>{row.siteName}</h3>
+                    <p className="risk-card__caption">
+                      {row.capacityKwp === null ? "ยังไม่ระบุกำลังติดตั้ง" : `${formatNumber(row.capacityKwp)} kWp`}
+                      {" • "}{row.reason}
+                    </p>
+                  </div>
 
-                <div className="risk-card__meta">
-                  <ComparisonBlock label="เดือนก่อน" comparison={row.comparison.mom} />
-                  <ComparisonBlock label="ค่าเฉลี่ยไซต์" comparison={row.comparison.siteAvg} />
-                  <ComparisonBlock label="ปีที่แล้ว" comparison={row.comparison.yoy} />
-                </div>
-              </Link>
-            ))}
+                  <div className="risk-card__meta">
+                    <ComparisonBlock label="ปีที่แล้ว (YoY)" comparison={row.comparison.yoy} />
+                    <ComparisonBlock label="ค่าเฉลี่ยไซต์" comparison={row.comparison.siteAvg} />
+                    <ComparisonBlock label="เดือนก่อน (MoM)" comparison={row.comparison.mom} secondary />
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>
@@ -581,6 +641,26 @@ export function SolarDashboard() {
         </div>
       </section>
 
+      <div
+        ref={importRef}
+        className={`import-section-wrapper${isImportOpen ? "" : " import-section-wrapper--collapsed"}`}
+      >
+        <ImportPanel
+          fileName={importState.fileName}
+          inferredMonth={importState.inferredMonth}
+          reportMonth={importState.reportMonth}
+          rowCount={importState.rowCount}
+          siteNames={importState.siteNames}
+          importing={importing}
+          importError={importError}
+          importSuccess={isImportOpen ? importSuccess : null}
+          canSubmit={importRows.length > 0 && isValidReportMonth(importState.reportMonth) && !importing}
+          onFileChange={handleImportFileChange}
+          onReportMonthChange={handleImportMonthChange}
+          onSubmit={handleImportSubmit}
+        />
+      </div>
+
       <details className="glossary">
         <summary>อธิบายคำสั้น ๆ</summary>
         <div className="glossary__body">
@@ -622,10 +702,12 @@ function formatSignedPercent(value: number): string {
   }).format(percent)}%`;
 }
 
-function ComparisonBlock({ label, comparison }: { label: string; comparison: ComparisonValue }) {
+function ComparisonBlock({ label, comparison, secondary }: { label: string; comparison: ComparisonValue; secondary?: boolean }) {
+  const secondaryClass = secondary ? " comparison-row--secondary" : "";
+
   if (comparison.deltaAbsKwh === null || comparison.deltaPct === null || comparison.baselineKwh === null) {
     return (
-      <div className="comparison-row comparison-row--empty">
+      <div className={`comparison-row comparison-row--empty${secondaryClass}`}>
         <span className="comparison-row__label">{label}</span>
         <span className="comparison-row__value">ไม่มีข้อมูลเทียบ</span>
       </div>
@@ -634,7 +716,7 @@ function ComparisonBlock({ label, comparison }: { label: string; comparison: Com
 
   const direction = comparison.deltaAbsKwh > 0 ? "เพิ่มขึ้น" : comparison.deltaAbsKwh < 0 ? "ลดลง" : "เท่าเดิม";
   return (
-    <div className={`comparison-row comparison-row--${comparison.state}`}>
+    <div className={`comparison-row comparison-row--${comparison.state}${secondaryClass}`}>
       <span className="comparison-row__label">{label}</span>
       <span className="comparison-row__value">
         {direction} {formatNumber(Math.abs(comparison.deltaAbsKwh))} kWh ({formatSignedPercent(comparison.deltaPct)})
@@ -650,13 +732,18 @@ function SummaryCard({
   unit,
   note,
   control,
+  delta,
 }: {
   label: string;
   value: string;
   unit: string;
   note: string;
   control?: React.ReactNode;
+  delta?: { abs: number; pct: number } | null;
 }) {
+  const deltaClass = delta === null || delta === undefined ? null : delta.abs > 0 ? "up" : delta.abs < 0 ? "down" : "flat";
+  const deltaDirection = delta === null || delta === undefined ? null : delta.abs > 0 ? "เพิ่มขึ้น" : delta.abs < 0 ? "ลดลง" : "เท่าเดิม";
+
   return (
     <Card className="summary-card" variant="outlined">
       <div className="summary-card__head">
@@ -668,8 +755,31 @@ function SummaryCard({
         suffix={<Typography.Text type="secondary" style={{ fontSize: 14 }}>{unit}</Typography.Text>}
         valueStyle={{ fontSize: 28, fontWeight: 700, color: "var(--primary)" }}
       />
+      {delta !== null && delta !== undefined && deltaClass !== null && deltaDirection !== null && (
+        <p className={`summary-card__delta summary-card__delta--${deltaClass}`}>
+          {deltaDirection} {formatNumber(Math.abs(delta.abs))} kWh ({formatSignedPercent(delta.pct)})
+        </p>
+      )}
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>{note}</Typography.Text>
     </Card>
+  );
+}
+
+function AlertBanner({ attention, watch, review }: { attention: number; watch: number; review: number }) {
+  const total = attention + watch + review;
+  if (total === 0) return null;
+
+  const isUrgent = attention > 0;
+  const parts: string[] = [];
+  if (attention > 0) parts.push(`${attention} ตรวจด่วน`);
+  if (watch > 0) parts.push(`${watch} เฝ้าระวัง`);
+  if (review > 0) parts.push(`${review} พิจารณา`);
+
+  return (
+    <div className={`alert-banner ${isUrgent ? "alert-banner--urgent" : "alert-banner--watch"}`} role="alert">
+      <strong>{total} ไซต์ต้องตรวจสอบ</strong>
+      <span>— {parts.join(", ")}</span>
+    </div>
   );
 }
 
@@ -756,21 +866,39 @@ function PortfolioComparisonChart({
   points,
   scale,
   hasData,
+  insight,
 }: {
   currentYear: number | null;
   points: PortfolioComparisonChartPoint[];
   scale: PortfolioChartScale;
   hasData: boolean;
+  insight: import("../lib/analytics").PortfolioInsight;
 }) {
   const currentPath = buildChartPath(points, (point) => point.currentYearYieldKwh, scale);
   const previousPath = buildChartPath(points, (point) => point.previousYearSameMonthYieldKwh, scale);
   const currentTitle = currentYear ? `ปีล่าสุด (${formatYearLabel(currentYear)})` : "ปีล่าสุด";
+
+  const insightText = (() => {
+    if (insight.totalMonthsCompared < 2) return null;
+    const isAhead = insight.monthsAhead >= insight.monthsBehind;
+    const count = isAhead ? insight.monthsAhead : insight.monthsBehind;
+    const direction = isAhead ? "อยู่เหนือ" : "อยู่ต่ำกว่า";
+    const avgStr = insight.averageDeltaPct !== null ? ` (เฉลี่ย ${formatSignedPercent(insight.averageDeltaPct)})` : "";
+    return `ปีนี้${direction}ปีก่อน ${count} จาก ${insight.totalMonthsCompared} เดือน${avgStr}`;
+  })();
+  const insightColorClass =
+    insight.averageDeltaPct === null
+      ? "chart-insight-line--neutral"
+      : insight.averageDeltaPct >= 0
+        ? "chart-insight-line--good"
+        : "chart-insight-line--bad";
 
   return (
     <section className="section-block" aria-labelledby="portfolio-chart-heading">
       <div className="section-head">
         <div>
           <h2 id="portfolio-chart-heading">ผลผลิตรวมทุกไซต์เทียบเดือนเดียวกันปีก่อน</h2>
+          {insightText && <p className={`chart-insight-line ${insightColorClass}`}>{insightText}</p>}
         </div>
         <p className="section-note">เส้นสีม่วงคือ{currentTitle} · เส้นสีเทาอ่อนคือเดือนเดียวกันของปีก่อน</p>
       </div>
