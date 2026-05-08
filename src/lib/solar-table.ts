@@ -80,9 +80,9 @@ export const siteTableHeaderLabels: Record<(typeof siteTableColumnOrder)[number]
   siteName: "ไซต์",
   monthYieldKwh: "เดือนนี้ (kWh)",
   yearYieldKwh: "ปีที่เลือก (kWh)",
-  vsLastMonthPct: "เทียบเดือนก่อน",
+  vsLastMonthPct: "เดือนก่อน",
   vsSiteAvgPct: "เทียบค่าเฉลี่ยไซต์",
-  vsLastYearPct: "เทียบเดือนเดียวกันปีก่อน",
+  vsLastYearPct: "YoY (ปีก่อน)",
 };
 
 export const rightAlignedColumnIds = new Set(["monthYieldKwh", "yearYieldKwh", "vsLastMonthPct", "vsSiteAvgPct", "vsLastYearPct"]);

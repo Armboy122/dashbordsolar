@@ -462,7 +462,7 @@ export function SolarDashboard() {
         </div>
       </header>
 
-      <AlertBanner attention={attentionCount} watch={watchCount} review={reviewCount} />
+      <AlertBanner attention={attentionCount} watch={watchCount} review={reviewCount} monitoringRows={monitoringRows} />
 
       {importSuccess && !isImportOpen && (
         <Alert type="success" message={importSuccess} showIcon closable onClose={() => setImportSuccess(null)} />
@@ -545,16 +545,18 @@ export function SolarDashboard() {
                 >
                   <div className="risk-card__top">
                     <StatusTag status={row.status} />
-                    <span className="risk-card__yield">{row.monthYieldKwh === null ? "ไม่มีข้อมูล" : `${formatNumber(row.monthYieldKwh)} kWh`}</span>
-                    {isRecovering && <span className="recovery-indicator">↑ ฟื้นจากเดือนก่อน</span>}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {isRecovering && <span className="recovery-indicator">↑ ฟื้นจากเดือนก่อน</span>}
+                      <span className="risk-card__yield">{row.monthYieldKwh === null ? "ไม่มีข้อมูล" : `${formatNumber(row.monthYieldKwh)} kWh`}</span>
+                    </div>
                   </div>
 
                   <div className="risk-card__body">
                     <h3>{row.siteName}</h3>
                     <p className="risk-card__caption">
                       {row.capacityKwp === null ? "ยังไม่ระบุกำลังติดตั้ง" : `${formatNumber(row.capacityKwp)} kWp`}
-                      {" • "}{row.reason}
                     </p>
+                    <p className="risk-card__reason">{row.reason}</p>
                   </div>
 
                   <div className="risk-card__meta">
@@ -702,7 +704,7 @@ function formatSignedPercent(value: number): string {
   }).format(percent)}%`;
 }
 
-function ComparisonBlock({ label, comparison, secondary }: { label: string; comparison: ComparisonValue; secondary?: boolean }) {
+function ComparisonBlock({ label, comparison, secondary = false }: { label: string; comparison: ComparisonValue; secondary?: boolean }) {
   const secondaryClass = secondary ? " comparison-row--secondary" : "";
 
   if (comparison.deltaAbsKwh === null || comparison.deltaPct === null || comparison.baselineKwh === null) {
@@ -765,7 +767,17 @@ function SummaryCard({
   );
 }
 
-function AlertBanner({ attention, watch, review }: { attention: number; watch: number; review: number }) {
+function AlertBanner({
+  attention,
+  watch,
+  review,
+  monitoringRows,
+}: {
+  attention: number;
+  watch: number;
+  review: number;
+  monitoringRows?: SiteTableRow[];
+}) {
   const total = attention + watch + review;
   if (total === 0) return null;
 
@@ -774,11 +786,12 @@ function AlertBanner({ attention, watch, review }: { attention: number; watch: n
   if (attention > 0) parts.push(`${attention} ตรวจด่วน`);
   if (watch > 0) parts.push(`${watch} เฝ้าระวัง`);
   if (review > 0) parts.push(`${review} พิจารณา`);
+  const topSite = monitoringRows?.[0]?.siteName;
 
   return (
     <div className={`alert-banner ${isUrgent ? "alert-banner--urgent" : "alert-banner--watch"}`} role="alert">
       <strong>{total} ไซต์ต้องตรวจสอบ</strong>
-      <span>— {parts.join(", ")}</span>
+      <span>— {parts.join(", ")}{topSite ? ` · อันดับแรก: ${topSite}` : ""}</span>
     </div>
   );
 }
