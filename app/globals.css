@@ -2225,7 +2225,7 @@ body {
   .trend-chart { min-width: 620px; min-height: 280px; }
 }
 
-/* ── Phase 2: Hero + KPI / Chart Polish ───────────────────────────── */
+/* ── Phase 2: Hero + KPI / Chart / Site Health Polish ───────────────────────────── */
 
 .alert-banner {
   padding: 12px 16px;
@@ -2301,9 +2301,29 @@ body {
   font-weight: 600;
 }
 
+.detail-hero__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+.detail-hero-risk {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
 .detail-kpi--primary  .detail-kpi__value { font-size: clamp(28px, 3.5vw, 40px); }
 .detail-kpi--secondary .detail-kpi__value { font-size: clamp(20px, 2.5vw, 28px); color: var(--ink-muted); }
 
+.action-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .action-item {
   padding: 8px 12px;
   border-radius: 10px;

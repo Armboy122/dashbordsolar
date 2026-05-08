@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getRiskBadgePresentation,
   getSiteDetailKpiLabel,
+  getKpiTier,
 } from "../src/lib/site-detail-presentation";
 
 describe("site detail presentation helpers", () => {
@@ -43,5 +44,24 @@ describe("site detail presentation helpers", () => {
       label: "ยังไม่มีระดับ",
       className: "risk-badge--unknown",
     });
+  });
+});
+
+describe("getKpiTier", () => {
+  it("classifies primary KPIs as primary tier", () => {
+    expect(getKpiTier("inverterYield")).toBe("primary");
+    expect(getKpiTier("specificEnergy")).toBe("primary");
+    expect(getKpiTier("performanceRatio")).toBe("primary");
+  });
+
+  it("classifies secondary KPIs as secondary tier", () => {
+    expect(getKpiTier("selfConsumptionRate")).toBe("secondary");
+    expect(getKpiTier("energyBalanceGap")).toBe("secondary");
+    expect(getKpiTier("loadBalanceGap")).toBe("secondary");
+  });
+
+  it("defaults unknown keys to secondary tier", () => {
+    expect(getKpiTier("unknownMetric")).toBe("secondary");
+    expect(getKpiTier("")).toBe("secondary");
   });
 });
