@@ -309,7 +309,12 @@ export function SiteDetail({
 
         <div className="chart-stack">
           {view.chartSections.map((section) => (
-            <TrendChart key={section.key} section={section} selectedYear={view.selectedYear} />
+            <TrendChart
+              key={section.key}
+              section={section}
+              selectedYear={view.selectedYear}
+              insight={computeChartInsight(section)}
+            />
           ))}
         </div>
       </section>
@@ -375,7 +380,45 @@ export function SiteDetail({
   );
 }
 
-function TrendChart({ section, selectedYear }: { section: SiteDetailChartSection; selectedYear: number | null }) {
+function computeChartInsight(section: SiteDetailChartSection): string | null {
+  if (section.key === "yield") {
+    const yearTotals = section.series
+      .map((s) => ({
+        year: s.year,
+        total: s.points.reduce((sum, p) => sum + (p.value ?? 0), 0),
+      }))
+      .filter((y) => y.total > 0);
+    if (yearTotals.length < 2) return null;
+    const best = yearTotals.reduce((max, y) => (y.total > max.total ? y : max));
+    const latest = yearTotals[yearTotals.length - 1];
+    if (!best || !latest || best.total === 0) return null;
+    const pct = (latest.total / best.total) * 100;
+    const bestKwh = new Intl.NumberFormat("th-TH", { maximumFractionDigits: 0 }).format(Math.round(best.total));
+    return `ปีที่ดีที่สุด: ${best.year} (${bestKwh} kWh) · ปีล่าสุด (${latest.year}) ${pct.toFixed(1)}% เทียบค่าสูงสุด`;
+  }
+
+  if (section.key === "performance") {
+    const lowMonths = section.series
+      .flatMap((s) => s.points)
+      .filter((p) => p.value !== null && p.value < 0.65);
+    if (lowMonths.length === 0) return null;
+    return `พบค่าต่ำกว่า 0.65 ใน ${lowMonths.length} เดือน`;
+  }
+
+  if (section.key === "selfConsumption") {
+    const dataPoints = section.series.flatMap((s) => s.points).filter((p) => p.value !== null);
+    if (dataPoints.length === 0) return null;
+    const highCount = dataPoints.filter((p) => (p.value ?? 0) > 0.9).length;
+    if (highCount / dataPoints.length > 0.7) {
+      return "ใช้ไฟเองสูงตลอด — ตรวจ export meter";
+    }
+    return null;
+  }
+
+  return null;
+}
+
+function TrendChart({ section, selectedYear, insight }: { section: SiteDetailChartSection; selectedYear: number | null; insight?: string | null }) {
   const width = 760;
   const height = 240;
   const padding = { top: 16, right: 18, bottom: 34, left: 42 };
@@ -393,6 +436,7 @@ function TrendChart({ section, selectedYear }: { section: SiteDetailChartSection
         <div>
           <p className="chart-card__eyebrow">{section.unit}</p>
           <h3>{section.title}</h3>
+          {insight ? <p className="chart-insight">{insight}</p> : null}
           <p className="chart-card__desc">{section.description}</p>
         </div>
         <div className="chart-legend">
