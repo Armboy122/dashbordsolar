@@ -3,9 +3,11 @@ import {
   buildMonthlyPortfolioSeries,
   buildPortfolioComparisonPoints,
   buildPortfolioChartScale,
+  buildPortfolioInsight,
   buildPortfolioMonthlySeries,
   buildSiteHistoryUrl,
   buildSiteHistoryView,
+  findMonthDelta,
 } from "../src/lib/analytics";
 
 describe("analytics helpers", () => {
@@ -189,5 +191,67 @@ describe("analytics helpers", () => {
     const parsed = new URL(url, "http://localhost");
 
     expect(parsed.searchParams.get("site")).toBe("โรงไฟฟ้า A 01");
+  });
+});
+
+describe("buildPortfolioInsight", () => {
+  it("counts months ahead and behind with average delta", () => {
+    const insight = buildPortfolioInsight([
+      { monthNumber: 1, monthLabel: "ม.ค.", currentYearYieldKwh: 120, previousYearSameMonthYieldKwh: 100 },
+      { monthNumber: 2, monthLabel: "ก.พ.", currentYearYieldKwh: 80, previousYearSameMonthYieldKwh: 100 },
+      { monthNumber: 3, monthLabel: "มี.ค.", currentYearYieldKwh: 110, previousYearSameMonthYieldKwh: 100 },
+      { monthNumber: 4, monthLabel: "เม.ย.", currentYearYieldKwh: null, previousYearSameMonthYieldKwh: 100 },
+    ]);
+
+    expect(insight.totalMonthsCompared).toBe(3);
+    expect(insight.monthsAhead).toBe(2);
+    expect(insight.monthsBehind).toBe(1);
+    expect(insight.averageDeltaPct).toBeCloseTo((0.2 + -0.2 + 0.1) / 3, 5);
+  });
+
+  it("returns null averageDeltaPct when no previous year data has positive values", () => {
+    const insight = buildPortfolioInsight([
+      { monthNumber: 1, monthLabel: "ม.ค.", currentYearYieldKwh: null, previousYearSameMonthYieldKwh: null },
+      { monthNumber: 2, monthLabel: "ก.พ.", currentYearYieldKwh: null, previousYearSameMonthYieldKwh: null },
+    ]);
+
+    expect(insight.totalMonthsCompared).toBe(0);
+    expect(insight.averageDeltaPct).toBeNull();
+  });
+
+  it("counts equal values as ahead (not behind)", () => {
+    const insight = buildPortfolioInsight([
+      { monthNumber: 1, monthLabel: "ม.ค.", currentYearYieldKwh: 100, previousYearSameMonthYieldKwh: 100 },
+    ]);
+
+    expect(insight.monthsAhead).toBe(1);
+    expect(insight.monthsBehind).toBe(0);
+  });
+});
+
+describe("findMonthDelta", () => {
+  const series = [
+    { month: "2025-01", year: 2025, monthNumber: 1, totalYieldKwh: 120, previousYearTotalYieldKwh: 100, deltaPct: 0.2 },
+    { month: "2025-02", year: 2025, monthNumber: 2, totalYieldKwh: 80, previousYearTotalYieldKwh: 100, deltaPct: -0.2 },
+    { month: "2025-03", year: 2025, monthNumber: 3, totalYieldKwh: null, previousYearTotalYieldKwh: 90, deltaPct: null },
+  ];
+
+  it("returns delta values for a matching month", () => {
+    const delta = findMonthDelta(series, "2025-01");
+
+    expect(delta).toEqual({ deltaAbsKwh: 20, deltaPct: 0.2, previousYearKwh: 100 });
+  });
+
+  it("returns null deltaAbsKwh when current yield is missing", () => {
+    const delta = findMonthDelta(series, "2025-03");
+
+    expect(delta).not.toBeNull();
+    expect(delta!.deltaAbsKwh).toBeNull();
+    expect(delta!.deltaPct).toBeNull();
+    expect(delta!.previousYearKwh).toBe(90);
+  });
+
+  it("returns null when no matching month is found", () => {
+    expect(findMonthDelta(series, "2025-12")).toBeNull();
   });
 });
