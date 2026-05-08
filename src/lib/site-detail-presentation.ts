@@ -91,6 +91,17 @@ export function getSiteDetailKpiLabel(kpi: SiteDetailKpiDescriptor): SiteDetailL
   };
 }
 
+const PRIMARY_KPI_KEYS = new Set(["inverterYield", "specificEnergy", "performanceRatio"]);
+
+/**
+ * Returns the visual tier for a KPI card.
+ * Primary KPIs (inverterYield, specificEnergy, performanceRatio) get larger type.
+ * Secondary KPIs get muted/smaller type.
+ */
+export function getKpiTier(key: string): "primary" | "secondary" {
+  return PRIMARY_KPI_KEYS.has(key) ? "primary" : "secondary";
+}
+
 export function getRiskBadgePresentation(level: string | null | undefined): RiskBadgePresentation {
   if (!level) {
     return {
