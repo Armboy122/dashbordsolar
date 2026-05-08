@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Alert, Button, Card, Empty, Skeleton, Tag, Typography } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import { buildSiteDetailView, type SiteDetailChartSection, type SiteDetailView } from "@/src/lib/site-detail-view";
-import { getRiskBadgePresentation, getSiteDetailKpiLabel } from "@/src/lib/site-detail-presentation";
+import { getRiskBadgePresentation, getSiteDetailKpiLabel, getKpiTier } from "@/src/lib/site-detail-presentation";
 import { type SiteHistoryRow } from "@/src/lib/site-history";
 
 type SiteHistoryResponse = {
@@ -170,20 +170,31 @@ export function SiteDetail({
           <p className="hero-subtitle">ดูสรุปเดือนที่เลือก เหตุผลความเสี่ยง และแนวโน้มรายปีก่อนลงรายละเอียดในตาราง</p>
         </div>
 
-        <div className="detail-summary-meta">
-          <div>
-            <span className="detail-summary-meta__label">ช่วงข้อมูล</span>
-            <strong>
-              {formatMonthThai(view.firstMonth)} → {formatMonthThai(view.latestMonth)}
-            </strong>
-          </div>
-          <div>
-            <span className="detail-summary-meta__label">จำนวนเดือน</span>
-            <strong>{view.totalMonths} เดือน</strong>
-          </div>
-          <div>
-            <span className="detail-summary-meta__label">กำลังติดตั้งล่าสุด</span>
-            <strong>{view.capacityKwp === null ? "ยังไม่มีข้อมูล" : `${formatNumber(view.capacityKwp)} kWp`}</strong>
+        <div className="detail-hero__right">
+          {view.selectedRow && (() => {
+            const riskPresentation = getRiskBadgePresentation(view.selectedRow.riskLevel);
+            return (
+              <div className="detail-hero-risk">
+                <span className="detail-summary-meta__label">สถานะเดือนที่เลือก</span>
+                <span className={`risk-badge ${riskPresentation.className}`}>{riskPresentation.label}</span>
+              </div>
+            );
+          })()}
+          <div className="detail-summary-meta">
+            <div>
+              <span className="detail-summary-meta__label">ช่วงข้อมูล</span>
+              <strong>
+                {formatMonthThai(view.firstMonth)} → {formatMonthThai(view.latestMonth)}
+              </strong>
+            </div>
+            <div>
+              <span className="detail-summary-meta__label">จำนวนเดือน</span>
+              <strong>{view.totalMonths} เดือน</strong>
+            </div>
+            <div>
+              <span className="detail-summary-meta__label">กำลังติดตั้งล่าสุด</span>
+              <strong>{view.capacityKwp === null ? "ยังไม่มีข้อมูล" : `${formatNumber(view.capacityKwp)} kWp`}</strong>
+            </div>
           </div>
         </div>
       </section>
@@ -242,7 +253,7 @@ export function SiteDetail({
             const label = getSiteDetailKpiLabel(kpi);
 
             return (
-              <article key={kpi.key} className="detail-kpi">
+              <article key={kpi.key} className={`detail-kpi detail-kpi--${getKpiTier(kpi.key)}`}>
                 <p className="detail-kpi__label">{label.primary}</p>
                 {label.secondary ? <p className="detail-kpi__sub">{label.secondary}</p> : null}
                 <strong className="detail-kpi__value">{formatMetricValue(kpi.value, kpi.unit)}</strong>
@@ -257,7 +268,7 @@ export function SiteDetail({
         <section className="surface-card detail-risk-card">
           <div className="section-head compact">
             <div>
-              <h2>เหตุผลและคำแนะนำของเดือนที่เลือก</h2>
+              <h2>การวินิจฉัยและคำแนะนำ</h2>
             </div>
             {(() => {
               const riskPresentation = getRiskBadgePresentation(view.selectedRow.riskLevel);
@@ -287,9 +298,9 @@ export function SiteDetail({
             <div>
               <h3 className="detail-subhead">คำแนะนำ</h3>
               {view.selectedRow.actions.length ? (
-                <ul className="bullet-list">
+                <ul className="action-list">
                   {view.selectedRow.actions.map((action) => (
-                    <li key={action}>{action}</li>
+                    <li key={action} className="action-item">{action}</li>
                   ))}
                 </ul>
               ) : (
@@ -326,22 +337,22 @@ export function SiteDetail({
             <thead>
               <tr>
                 <th>เดือน</th>
-                <th>Inverter yield</th>
-                <th>Capacity</th>
-                <th>Specific energy</th>
-                <th>Peak ratio</th>
-                <th>Self-consumption</th>
-                <th>Export</th>
-                <th>Import</th>
-                <th>Consumption</th>
-                <th>Energy gap</th>
-                <th>Load gap</th>
-                <th>Risk / reasons</th>
+                <th>ผลผลิต <small>(Inverter yield)</small></th>
+                <th>กำลัง <small>(Capacity)</small></th>
+                <th>ผลผลิตต่อกำลัง <small>(Specific energy)</small></th>
+                <th>ประสิทธิภาพ <small>(Peak ratio)</small></th>
+                <th>ใช้เอง <small>(Self-consumption)</small></th>
+                <th>ส่งออก <small>(Export)</small></th>
+                <th>นำเข้า <small>(Import)</small></th>
+                <th>ใช้รวม <small>(Consumption)</small></th>
+                <th>ช่องว่างพลังงาน <small>(Energy gap)</small></th>
+                <th>ช่องว่างโหลด <small>(Load gap)</small></th>
+                <th>ความเสี่ยง <small>(Risk)</small></th>
               </tr>
             </thead>
             <tbody>
               {view.historyRows.map((row) => (
-                <tr key={row.reportMonth}>
+                <tr key={row.reportMonth} data-selected={row.reportMonth === view.selectedMonth ? "true" : undefined}>
                   <td>
                     <strong>{formatMonthThai(row.reportMonth)}</strong>
                   </td>
@@ -386,6 +397,7 @@ function TrendChart({ section, selectedYear }: { section: SiteDetailChartSection
   const min = 0;
   const months = [1, 3, 5, 7, 9, 11, 12];
   const activeSeries = selectedYear === null ? section.series : section.series.filter((series) => series.year === selectedYear);
+  const insight = buildChartInsight(section);
 
   return (
     <article className="surface-card chart-card">
@@ -394,6 +406,7 @@ function TrendChart({ section, selectedYear }: { section: SiteDetailChartSection
           <p className="chart-card__eyebrow">{section.unit}</p>
           <h3>{section.title}</h3>
           <p className="chart-card__desc">{section.description}</p>
+          {insight ? <p className="chart-insight">{insight}</p> : null}
         </div>
         <div className="chart-legend">
           {activeSeries.map((series) => (
@@ -464,6 +477,46 @@ function TrendChart({ section, selectedYear }: { section: SiteDetailChartSection
       )}
     </article>
   );
+}
+
+function buildChartInsight(section: SiteDetailChartSection): string | null {
+  if (section.key === "yield") return buildYieldInsight(section.series);
+  if (section.key === "performance") return buildPeakRatioInsight(section.series);
+  if (section.key === "selfConsumption") return buildSelfConsumptionInsight(section.series);
+  return null;
+}
+
+function buildYieldInsight(series: SiteDetailChartSection["series"]): string | null {
+  const yearsWithData = series.filter((s) => s.points.some((p) => p.value !== null));
+  if (yearsWithData.length < 2) return null;
+
+  const yearTotals = yearsWithData.map((s) => ({
+    year: s.year,
+    total: s.points.reduce((sum, p) => sum + (p.value ?? 0), 0),
+  }));
+
+  const bestYear = yearTotals.reduce((best, y) => (y.total > best.total ? y : best));
+  const latestYear = yearTotals[yearTotals.length - 1];
+
+  if (latestYear.year === bestYear.year) {
+    return `ปีที่ดีที่สุด: ${bestYear.year} (${formatNumber(bestYear.total, 0)} kWh) — ปีล่าสุดดีที่สุด`;
+  }
+
+  const pct = bestYear.total > 0 ? (latestYear.total / bestYear.total) * 100 : null;
+  return `ปีที่ดีที่สุด: ${bestYear.year} (${formatNumber(bestYear.total, 0)} kWh) — ปีล่าสุด ${pct !== null ? formatNumber(pct, 1) + "%" : "—"} เทียบค่าสูงสุด`;
+}
+
+function buildPeakRatioInsight(series: SiteDetailChartSection["series"]): string | null {
+  const lowCount = series.flatMap((s) => s.points).filter((p) => p.value !== null && p.value < 0.65).length;
+  if (lowCount === 0) return null;
+  return `พบค่าต่ำกว่า 0.65 ใน ${lowCount} เดือน`;
+}
+
+function buildSelfConsumptionInsight(series: SiteDetailChartSection["series"]): string | null {
+  const validPoints = series.flatMap((s) => s.points).filter((p) => p.value !== null);
+  if (validPoints.length < 3) return null;
+  if (!validPoints.every((p) => (p.value ?? 0) > 0.9)) return null;
+  return "ใช้ไฟเองสูงตลอด — ตรวจ export meter";
 }
 
 function buildSeriesPath(

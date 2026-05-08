@@ -2225,3 +2225,78 @@ body {
   .trend-chart { min-width: 620px; min-height: 280px; }
 }
 
+/* ── Phase 2: Site Health UX ──────────────────────────────── */
+
+/* Hero card right column: risk badge above meta grid */
+.detail-hero__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.detail-hero-risk {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+/* KPI visual tiers */
+.detail-kpi--primary .detail-kpi__value {
+  font-size: clamp(28px, 3.5vw, 40px);
+}
+
+.detail-kpi--secondary .detail-kpi__value {
+  font-size: clamp(20px, 2.5vw, 28px);
+  color: var(--ink-muted);
+}
+
+/* Action items in risk/diagnostic section */
+.action-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.action-item {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  border-left: 3px solid var(--primary);
+}
+
+/* Chart insight annotations */
+.chart-insight {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+/* Alert banner */
+.alert-banner { border-radius: 14px; }
+.alert-banner--urgent { border-left: 4px solid var(--bad); background: rgba(196,91,110,0.06); }
+.alert-banner--watch  { border-left: 4px solid var(--warn); background: rgba(184,151,74,0.06); }
+
+/* Chart insight line */
+.chart-insight-line { font-size: 14px; font-weight: 600; margin: 0; }
+.chart-insight-line--good { color: var(--good); }
+.chart-insight-line--bad  { color: var(--bad); }
+
+/* Secondary comparison row in risk cards */
+.comparison-row--secondary { font-size: 12px; color: var(--ink-soft); }
+
+/* Recovery indicator in risk cards */
+.recovery-indicator { font-size: 12px; font-weight: 700; color: var(--good); }
+
+/* Selected row in history table */
+tr[data-selected="true"] td { background: var(--primary-soft) !important; }
+
+/* Import section wrapper */
+.import-section-wrapper { }
+.import-section-wrapper--collapsed .import-card { display: none; }
+
