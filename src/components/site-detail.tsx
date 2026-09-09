@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Alert, Button, Card, Empty, Skeleton, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Skeleton, Typography } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import { buildSiteDetailView, type SiteDetailChartSection, type SiteDetailView } from "@/src/lib/site-detail-view";
-import { getRiskBadgePresentation, getSiteDetailKpiLabel, getKpiTier } from "@/src/lib/site-detail-presentation";
+import { getRiskBadgePresentation, getSiteDetailKpiLabel } from "@/src/lib/site-detail-presentation";
 import { type SiteHistoryRow } from "@/src/lib/site-history";
 
 type SiteHistoryResponse = {
@@ -33,6 +33,9 @@ export function SiteDetail({
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const [selectedYear, setSelectedYear] = useState<number | null>(initialYear);
   const [loading, setLoading] = useState(true);
+  const [missingRequestedMonth, setMissingRequestedMonth] = useState<string | null>(null);
+  const requestedMonthRef = useRef(initialMonth);
+  const dashboardScope = searchParams.get("scope") === "history" ? "history" : "source";
   const [error, setError] = useState<string | null>(null);
   const historyAbortRef = useRef<AbortController | null>(null);
   const historyRequestRef = useRef(0);
@@ -61,6 +64,8 @@ export function SiteDetail({
       }
 
       setData(payload);
+      const requested = requestedMonthRef.current;
+      setMissingRequestedMonth(requested && !payload.rows.some(row => row.reportMonth === requested) ? requested : null);
     } catch (fetchError) {
       if (controller.signal.aborted || requestId !== historyRequestRef.current) return;
       setError(fetchError instanceof Error ? fetchError.message : "ไม่สามารถโหลดรายละเอียดไซต์ได้");
@@ -82,7 +87,7 @@ export function SiteDetail({
     if (!data) return;
 
     const query = new URLSearchParams(searchParams.toString());
-    if (selectedMonth) query.set("month", selectedMonth);
+    if (missingRequestedMonth || selectedMonth) query.set("month", missingRequestedMonth || selectedMonth);
     else query.delete("month");
 
     if (selectedYear !== null) query.set("year", String(selectedYear));
@@ -95,23 +100,24 @@ export function SiteDetail({
     if (nextUrl !== currentUrl) {
       router.replace(nextUrl, { scroll: false });
     }
-  }, [data, pathname, router, selectedMonth, selectedYear]);
+  }, [data, pathname, router, selectedMonth, selectedYear, missingRequestedMonth, searchParams]);
 
   const view = useMemo<SiteDetailView | null>(() => {
     if (!data) return null;
     return buildSiteDetailView(data.rows, {
       requestedMonth: selectedMonth,
       selectedYear,
-      backHref: selectedMonth ? `/?month=${encodeURIComponent(selectedMonth)}` : "/",
+      backHref: `/?scope=${dashboardScope}${selectedMonth ? `&month=${encodeURIComponent(selectedMonth)}` : ""}`,
     });
-  }, [data, selectedMonth, selectedYear]);
+  }, [data, selectedMonth, selectedYear, dashboardScope]);
 
   useEffect(() => {
     if (!view) return;
     setSelectedMonth((current) => (current === view.selectedMonth ? current : view.selectedMonth));
   }, [view?.selectedMonth, view?.selectedYear, view?.totalMonths]);
 
-  const resolvedBackHref = view?.selectedMonth ? `/?month=${encodeURIComponent(view.selectedMonth)}` : initialMonth ? `/?month=${encodeURIComponent(initialMonth)}` : "/";
+  const backMonth = missingRequestedMonth || view?.selectedMonth || initialMonth;
+  const resolvedBackHref = `/?scope=${dashboardScope}${backMonth ? `&month=${encodeURIComponent(backMonth)}` : ""}`;
 
   if (loading) {
     return <DetailLoading siteName={siteName} />;
@@ -157,17 +163,23 @@ export function SiteDetail({
           : Math.max(index - 1, 0);
 
     setSelectedYear(view.yearTabs[nextIndex]?.value ?? null);
+    setMissingRequestedMonth(null);
+    requestedMonthRef.current = "";
+    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
   };
 
   return (
     <main className="dashboard-shell detail-page">
+      {missingRequestedMonth && (
+        <Alert type="info" showIcon title={`ไม่มีรายงาน ${formatMonthThai(missingRequestedMonth)} สำหรับไซต์นี้`} description={`กำลังแสดงรายงาน ${formatMonthThai(view.selectedMonth)} ที่มีอยู่ คุณเลือกดูเดือนอื่นจากประวัติได้`} />
+      )}
       <section className="surface-card hero-card detail-hero">
         <div className="hero-copy">
           <Link href={resolvedBackHref} className="back-link">
             ← กลับหน้าหลัก
           </Link>
           <h1>{view.siteName || siteName}</h1>
-          <p className="hero-subtitle">ดูสรุปเดือนที่เลือก เหตุผลความเสี่ยง และแนวโน้มรายปีก่อนลงรายละเอียดในตาราง</p>
+          <p className="hero-subtitle">ติดตามไฟฟ้าที่ผลิตได้ การนำไปใช้ และข้อมูลที่ควรตรวจสอบ</p>
         </div>
 
         <div className="detail-hero__right">
@@ -176,7 +188,7 @@ export function SiteDetail({
             return (
               <div className="detail-hero-risk">
                 <span className="detail-summary-meta__label">สถานะเดือนที่เลือก</span>
-                <span className={`risk-badge ${riskPresentation.className}`}>{riskPresentation.label}</span>
+                {view.selectedRow.inverterYieldKwh === null ? <span className="status-chip status-chip--no-data">ข้อมูลไม่ครบ</span> : <span className={`risk-badge ${riskPresentation.className}`}>{riskPresentation.label}</span>}
               </div>
             );
           })()}
@@ -192,7 +204,7 @@ export function SiteDetail({
               <strong>{view.totalMonths} เดือน</strong>
             </div>
             <div>
-              <span className="detail-summary-meta__label">กำลังติดตั้งล่าสุด</span>
+              <span className="detail-summary-meta__label">ขนาดระบบที่มีข้อมูล (kWp)</span>
               <strong>{view.capacityKwp === null ? "ยังไม่มีข้อมูล" : `${formatNumber(view.capacityKwp)} kWp`}</strong>
             </div>
           </div>
@@ -204,28 +216,28 @@ export function SiteDetail({
           <div>
             <h2>เลือกดูข้อมูลรายปี</h2>
           </div>
-          <p className="section-note">สลับปีเพื่อดูชุดข้อมูลประวัติเดียวกันโดยไม่เปลี่ยนบริบทของไซต์</p>
+          <p className="section-note">เลือกปีและเดือนของรายงานที่ต้องการดู</p>
         </div>
         <div className="year-tabs" role="tablist" aria-label="เลือกปีที่ต้องการดู">
           {view.yearTabs.map((tab, index) => (
             <button
-              key={tab.label}
+              key={tab.value === null ? "ทุกปี" : `พ.ศ. ${tab.value + 543}`}
               type="button"
               role="tab"
               aria-selected={tab.active}
               tabIndex={tab.active ? 0 : -1}
               className={`year-tab ${tab.active ? "year-tab--active" : ""}`}
-              onClick={() => setSelectedYear(tab.value)}
+              onClick={() => { setMissingRequestedMonth(null); requestedMonthRef.current = ""; setSelectedYear(tab.value); }}
               onKeyDown={(event) => handleYearTabKeyDown(event, index)}
             >
-              {tab.label}
+              {tab.value === null ? "ทุกปี" : `พ.ศ. ${tab.value + 543}`}
             </button>
           ))}
         </div>
         <div className="detail-toolbar-row">
           <label className="field detail-month-field">
             <span>เดือนที่เลือก</span>
-            <select value={view.selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}>
+            <select value={view.selectedMonth} onChange={(event) => { setMissingRequestedMonth(null); requestedMonthRef.current = ""; setSelectedMonth(event.target.value); }}>
               {monthOptions.slice().reverse().map((month) => (
                 <option key={month} value={month}>
                   {formatMonthThai(month)}
@@ -235,7 +247,7 @@ export function SiteDetail({
           </label>
           <div className="detail-toolbar-row__note">
             <span>แสดง {view.activeRows.length} เดือนในมุมมองปัจจุบัน</span>
-            <span>{view.selectedYear === null ? "กำลังดูทุกปี" : `กำลังดูปี ${view.selectedYear}`}</span>
+            <span>{view.selectedYear === null ? "กำลังดูทุกปี" : `กำลังดูปี พ.ศ. ${view.selectedYear + 543}`}</span>
           </div>
         </div>
       </section>
@@ -249,32 +261,41 @@ export function SiteDetail({
         </div>
 
         <div className="detail-kpi-grid">
-          {view.kpis.map((kpi) => {
-            const label = getSiteDetailKpiLabel(kpi);
-
-            return (
-              <article key={kpi.key} className={`detail-kpi detail-kpi--${getKpiTier(kpi.key)}`}>
-                <p className="detail-kpi__label">{label.primary}</p>
-                {label.secondary ? <p className="detail-kpi__sub">{label.secondary}</p> : null}
-                <strong className="detail-kpi__value">{formatMetricValue(kpi.value, kpi.unit)}</strong>
-                <p className="detail-kpi__note">{kpi.note}</p>
-              </article>
-            );
-          })}
+          <article className="detail-kpi detail-kpi--primary">
+            <p className="detail-kpi__label">ไฟฟ้าที่ผลิตได้</p>
+            <strong className="detail-kpi__value">{formatNumber(view.selectedRow?.inverterYieldKwh ?? null)} <small>หน่วย</small></strong>
+            <p className="detail-kpi__note">1 หน่วย = 1 kWh</p>
+          </article>
+          <article className="detail-kpi detail-kpi--primary">
+            <p className="detail-kpi__label">ไฟโซลาร์ที่นำไปใช้เอง</p>
+            <strong className="detail-kpi__value">{formatNumber(view.selectedRow?.selfConsumptionKwh ?? null)} <small>หน่วย</small></strong>
+            <p className="detail-kpi__note">ไฟที่ผลิตแล้วใช้ภายในไซต์</p>
+          </article>
+          <article className="detail-kpi detail-kpi--primary">
+            <p className="detail-kpi__label">สัดส่วนใช้เองตามรายงาน</p>
+            <strong className="detail-kpi__value">{formatPercent(view.selectedRow?.selfConsumptionRate ?? null)}</strong>
+            <p className="detail-kpi__note">ค่าร้อยละที่ระบุในรายงานต้นทาง</p>
+          </article>
         </div>
       </section>
 
-      {view.selectedRow && (
+      {view.selectedRow?.inverterYieldKwh === null && (
+        <Alert type="info" showIcon title="ยังไม่มีค่าผลิตไฟในรายงานเดือนนี้" description="ตรวจสอบความครบถ้วนของรายงานและข้อมูลมิเตอร์ ก่อนประเมินการทำงานของระบบ" />
+      )}
+      {view.selectedRow?.energyBalanceGapKwh != null && Math.abs(view.selectedRow.energyBalanceGapKwh) > 1 && (
+        <Alert type="warning" showIcon title="ตัวเลขในรายงานควรตรวจทาน" description={`ค่าผลิตไฟต่างจากผลรวมไฟใช้เองและไฟส่งออก ${formatNumber(Math.abs(view.selectedRow.energyBalanceGapKwh))} หน่วย ตรวจสอบรายงานและช่วงเวลาของมิเตอร์ก่อนสรุปผล`} />
+      )}
+      {view.selectedRow && view.selectedRow.inverterYieldKwh !== null && (
         <section className="surface-card detail-risk-card">
           <div className="section-head compact">
             <div>
-              <h2>การวินิจฉัยและคำแนะนำ</h2>
+              <h2>สิ่งที่ควรตรวจสอบและคำแนะนำ</h2>
             </div>
             {(() => {
               const riskPresentation = getRiskBadgePresentation(view.selectedRow.riskLevel);
               return (
                 <div className={`risk-score-badge ${riskPresentation.className}`}>
-                  <span>Risk score</span>
+                  <span>คะแนนติดตาม</span>
                   <strong>{formatNumber(view.selectedRow.riskScore)}</strong>
                   <em>{riskPresentation.label}</em>
                 </div>
@@ -314,12 +335,12 @@ export function SiteDetail({
       <section className="section-block">
         <div className="section-head">
           <div>
-            <h2>กราฟแนวโน้มทุกปี</h2>
+            <h2>แนวโน้มไฟฟ้าที่ผลิตได้</h2>
           </div>
         </div>
 
         <div className="chart-stack">
-          {view.chartSections.map((section) => (
+          {view.chartSections.filter(section => section.key === "yield").map((section) => (
             <TrendChart
               key={section.key}
               section={section}
@@ -329,6 +350,25 @@ export function SiteDetail({
           ))}
         </div>
       </section>
+
+      <details className="technical-details">
+        <summary>ดูข้อมูลเชิงเทคนิคเพิ่มเติม</summary>
+        <p className="section-note">ใช้ตรวจผลผลิตต่อขนาดระบบ กำลังสูงสุด และความสอดคล้องของค่ามิเตอร์</p>
+        <div className="detail-kpi-grid">
+          {view.kpis.filter(kpi => !["inverterYield", "selfConsumptionRate"].includes(kpi.key)).map(kpi => (
+            <article key={kpi.key} className="detail-kpi detail-kpi--secondary">
+              <p className="detail-kpi__label">{getSiteDetailKpiLabel(kpi).primary}</p>
+              <strong className="detail-kpi__value">{formatMetricValue(kpi.value, kpi.unit)}</strong>
+              <p className="detail-kpi__note">{kpi.note}</p>
+            </article>
+          ))}
+        </div>
+        <div className="chart-stack">
+          {view.chartSections.filter(section => section.key !== "yield").map(section => (
+            <TrendChart key={section.key} section={section} selectedYear={view.selectedYear} insight={computeChartInsight(section)} />
+          ))}
+        </div>
+      </details>
 
       <section className="section-block">
         <div className="section-head">
@@ -342,17 +382,17 @@ export function SiteDetail({
             <thead>
               <tr>
                 <th>เดือน</th>
-                <th>ผลผลิต <small>(Inverter yield)</small></th>
-                <th>กำลัง <small>(Capacity)</small></th>
-                <th>ผลผลิตต่อกำลัง <small>(Specific energy)</small></th>
-                <th>ประสิทธิภาพ <small>(Peak ratio)</small></th>
-                <th>ใช้เอง <small>(Self-consumption)</small></th>
-                <th>ส่งออก <small>(Export)</small></th>
-                <th>นำเข้า <small>(Import)</small></th>
-                <th>ใช้รวม <small>(Consumption)</small></th>
-                <th>ช่องว่างพลังงาน <small>(Energy gap)</small></th>
-                <th>ช่องว่างโหลด <small>(Load gap)</small></th>
-                <th>ความเสี่ยง <small>(Risk)</small></th>
+                <th>ไฟฟ้าที่ผลิตได้ <small>(หน่วย)</small></th>
+                <th>ขนาดระบบ <small>(kWp)</small></th>
+                <th>ผลผลิตต่อขนาดระบบ <small>(kWh/kWp)</small></th>
+                <th>อัตรากำลังสูงสุด</th>
+                <th>สัดส่วนใช้เอง</th>
+                <th>ส่งเข้าระบบไฟฟ้า</th>
+                <th>ซื้อจากระบบไฟฟ้า</th>
+                <th>ใช้ไฟรวม</th>
+                <th>ส่วนต่างพลังงาน</th>
+                <th>ส่วนต่างการใช้ไฟ</th>
+                <th>สถานะติดตาม</th>
               </tr>
             </thead>
             <tbody>
@@ -375,7 +415,7 @@ export function SiteDetail({
                     <div className="detail-history-risk">
                       {(() => {
                         const riskPresentation = getRiskBadgePresentation(row.riskLevel);
-                        return <span className={`risk-badge ${riskPresentation.className}`}>{riskPresentation.label}</span>;
+                        return row.inverterYieldKwh === null ? <span className="status-chip status-chip--no-data">ข้อมูลไม่ครบ</span> : <span className={`risk-badge ${riskPresentation.className}`}>{riskPresentation.label}</span>;
                       })()}
                       <span className="detail-history-risk__score">{formatNumber(row.riskScore)}</span>
                       {row.reasons.length ? <span className="detail-history-risk__reason">{row.reasons.join(" • ")}</span> : <span className="muted">—</span>}
@@ -405,7 +445,7 @@ function computeChartInsight(section: SiteDetailChartSection): string | null {
     if (!best || !latest || best.total === 0) return null;
     const pct = (latest.total / best.total) * 100;
     const bestKwh = new Intl.NumberFormat("th-TH", { maximumFractionDigits: 0 }).format(Math.round(best.total));
-    return `ปีที่ดีที่สุด: ${best.year} (${bestKwh} kWh) · ปีล่าสุด (${latest.year}) ${pct.toFixed(1)}% เทียบค่าสูงสุด`;
+    return `ยอดรวมสูงสุดที่มีข้อมูล: พ.ศ. ${best.year + 543} (${bestKwh} หน่วย) · พ.ศ. ${latest.year + 543} คิดเป็น ${pct.toFixed(1)}% ของยอดนั้น (จำนวนเดือนที่มีข้อมูลอาจต่างกัน)`;
   }
 
   if (section.key === "performance") {
@@ -421,7 +461,7 @@ function computeChartInsight(section: SiteDetailChartSection): string | null {
     if (dataPoints.length === 0) return null;
     const highCount = dataPoints.filter((p) => (p.value ?? 0) > 0.9).length;
     if (highCount / dataPoints.length > 0.7) {
-      return "ใช้ไฟเองสูงตลอด — ตรวจ export meter";
+      return "ข้อมูลส่วนใหญ่แสดงว่าใช้ไฟโซลาร์เองเกิน 90%";
     }
     return null;
   }
@@ -430,6 +470,7 @@ function computeChartInsight(section: SiteDetailChartSection): string | null {
 }
 
 function TrendChart({ section, selectedYear, insight }: { section: SiteDetailChartSection; selectedYear: number | null; insight?: string | null }) {
+  const chartTitle = { yield: "ไฟฟ้าที่ผลิตได้รายเดือน", performance: "อัตรากำลังสูงสุดเทียบขนาดระบบ", selfConsumption: "สัดส่วนไฟโซลาร์ที่นำไปใช้เอง" }[section.key];
   const width = 760;
   const height = 240;
   const padding = { top: 16, right: 18, bottom: 34, left: 42 };
@@ -446,7 +487,7 @@ function TrendChart({ section, selectedYear, insight }: { section: SiteDetailCha
       <div className="chart-card__head">
         <div>
           <p className="chart-card__eyebrow">{section.unit}</p>
-          <h3>{section.title}</h3>
+          <h3>{chartTitle}</h3>
           {insight ? <p className="chart-insight">{insight}</p> : null}
           <p className="chart-card__desc">{section.description}</p>
         </div>
@@ -454,7 +495,7 @@ function TrendChart({ section, selectedYear, insight }: { section: SiteDetailCha
           {activeSeries.map((series) => (
             <span key={series.year} className="chart-legend__item">
               <span className="chart-legend__swatch" style={{ backgroundColor: series.color }} />
-              {series.label}
+              พ.ศ. {series.year + 543}
             </span>
           ))}
         </div>
@@ -463,7 +504,7 @@ function TrendChart({ section, selectedYear, insight }: { section: SiteDetailCha
       {activeSeries.length === 0 ? (
         <p className="no-data">ยังไม่มีข้อมูลสำหรับปีที่เลือก</p>
       ) : (
-        <svg viewBox={`0 0 ${width} ${height}`} className="trend-chart" role="img" aria-label={section.title}>
+        <svg viewBox={`0 0 ${width} ${height}`} className="trend-chart" role="img" aria-label={chartTitle}>
           <g>
             {months.map((monthNumber) => {
               const x = padding.left + ((monthNumber - 1) / 11) * innerWidth;
@@ -519,46 +560,6 @@ function TrendChart({ section, selectedYear, insight }: { section: SiteDetailCha
       )}
     </article>
   );
-}
-
-function buildChartInsight(section: SiteDetailChartSection): string | null {
-  if (section.key === "yield") return buildYieldInsight(section.series);
-  if (section.key === "performance") return buildPeakRatioInsight(section.series);
-  if (section.key === "selfConsumption") return buildSelfConsumptionInsight(section.series);
-  return null;
-}
-
-function buildYieldInsight(series: SiteDetailChartSection["series"]): string | null {
-  const yearsWithData = series.filter((s) => s.points.some((p) => p.value !== null));
-  if (yearsWithData.length < 2) return null;
-
-  const yearTotals = yearsWithData.map((s) => ({
-    year: s.year,
-    total: s.points.reduce((sum, p) => sum + (p.value ?? 0), 0),
-  }));
-
-  const bestYear = yearTotals.reduce((best, y) => (y.total > best.total ? y : best));
-  const latestYear = yearTotals[yearTotals.length - 1];
-
-  if (latestYear.year === bestYear.year) {
-    return `ปีที่ดีที่สุด: ${bestYear.year} (${formatNumber(bestYear.total, 0)} kWh) — ปีล่าสุดดีที่สุด`;
-  }
-
-  const pct = bestYear.total > 0 ? (latestYear.total / bestYear.total) * 100 : null;
-  return `ปีที่ดีที่สุด: ${bestYear.year} (${formatNumber(bestYear.total, 0)} kWh) — ปีล่าสุด ${pct !== null ? formatNumber(pct, 1) + "%" : "—"} เทียบค่าสูงสุด`;
-}
-
-function buildPeakRatioInsight(series: SiteDetailChartSection["series"]): string | null {
-  const lowCount = series.flatMap((s) => s.points).filter((p) => p.value !== null && p.value < 0.65).length;
-  if (lowCount === 0) return null;
-  return `พบค่าต่ำกว่า 0.65 ใน ${lowCount} เดือน`;
-}
-
-function buildSelfConsumptionInsight(series: SiteDetailChartSection["series"]): string | null {
-  const validPoints = series.flatMap((s) => s.points).filter((p) => p.value !== null);
-  if (validPoints.length < 3) return null;
-  if (!validPoints.every((p) => (p.value ?? 0) > 0.9)) return null;
-  return "ใช้ไฟเองสูงตลอด — ตรวจ export meter";
 }
 
 function buildSeriesPath(

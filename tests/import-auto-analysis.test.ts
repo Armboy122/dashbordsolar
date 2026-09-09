@@ -1,0 +1,9 @@
+import {beforeEach,it,expect,vi} from 'vitest';
+const mocks=vi.hoisted(()=>({sql:vi.fn(),ensureSchema:vi.fn(),rebuildMonthlyAnalysis:vi.fn(),enqueueMonthlyAnalysis:vi.fn(),startAnalysisWorker:vi.fn()}));
+vi.mock('../src/db/client',()=>({sql:mocks.sql}));vi.mock('../src/db/bootstrap',()=>({ensureSchema:mocks.ensureSchema}));vi.mock('../src/lib/rebuild-monthly-analysis',()=>({rebuildMonthlyAnalysis:mocks.rebuildMonthlyAnalysis}));vi.mock('../src/lib/operations-store',()=>({enqueueMonthlyAnalysis:mocks.enqueueMonthlyAnalysis}));vi.mock('../src/lib/analysis-worker',()=>({startAnalysisWorker:mocks.startAnalysisWorker}));
+import {POST} from '../app/api/reports/import/route';
+const request=()=>new Request('http://localhost/api/reports/import',{method:'POST',body:JSON.stringify({filename:'test.xlsx',reportMonth:'2026-02',rows:[{plantName:'A',riskScore:1,riskLevel:'watch',reasons:[],actions:[]}]})});
+beforeEach(()=>{vi.resetAllMocks();mocks.sql.mockResolvedValue([{id:'id'}]);mocks.enqueueMonthlyAnalysis.mockResolvedValue(1);});
+it('enqueues imported sites only after reports and analysis rebuild succeed',async()=>{expect((await POST(request())).status).toBe(200);expect(mocks.enqueueMonthlyAnalysis).toHaveBeenCalledWith('id','2026-02',['A']);expect(mocks.rebuildMonthlyAnalysis.mock.invocationCallOrder[0]).toBeLessThan(mocks.enqueueMonthlyAnalysis.mock.invocationCallOrder[0]);expect(mocks.startAnalysisWorker).toHaveBeenCalled();});
+it('does not queue when rebuilding fails',async()=>{mocks.rebuildMonthlyAnalysis.mockRejectedValue(Error('failed'));expect((await POST(request())).status).toBe(500);expect(mocks.enqueueMonthlyAnalysis).not.toHaveBeenCalled();});
+it('reports a queue failure separately from a completed import',async()=>{mocks.enqueueMonthlyAnalysis.mockRejectedValue(Error('failed'));const r=await POST(request());expect(r.status).toBe(200);expect(await r.json()).toMatchObject({ok:true,aiAnalysis:{status:'queue_failed'}});});

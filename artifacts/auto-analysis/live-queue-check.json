@@ -1,0 +1,11 @@
+{
+  "purpose": "Real queue verification using existing report; no report or maintenance mutation",
+  "jobs": [
+    {
+      "status": "succeeded",
+      "attempts": 1,
+      "last_error": null,
+      "has_result": true
+    }
+  ]
+}

@@ -1,0 +1,332 @@
+{
+  "applied": true,
+  "months": 39,
+  "beforeRows": 1728,
+  "afterRows": 1863,
+  "range": [
+    "2023-06",
+    "2026-08"
+  ],
+  "preserved": [
+    "solar_maintenance_records",
+    "solar_ai_jobs",
+    "site identities",
+    "earlier import audit"
+  ],
+  "sourceOnlyRemoved": [
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2023-11"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2023-12"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-01"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-02"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-03"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-04"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-05"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-06"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-07"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-08"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-09"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-10"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2024-12"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-01"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-02"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-03"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-04"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-05"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-06"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-07"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-08"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-09"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-10"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-11"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2025-12"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2026-01"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2026-02"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2026-03"
+    },
+    {
+      "site": "TYD สนง.กฟย.ทุ่งยางแดง",
+      "month": "2026-04"
+    }
+  ],
+  "backupPath": "cache/fusionsolar/full-refresh-20260909/before-replacement.json",
+  "verified": [
+    {
+      "report_month": "2023-06",
+      "count": 2,
+      "total": null
+    },
+    {
+      "report_month": "2023-07",
+      "count": 3,
+      "total": "474.84"
+    },
+    {
+      "report_month": "2023-08",
+      "count": 5,
+      "total": "3230.34"
+    },
+    {
+      "report_month": "2023-09",
+      "count": 5,
+      "total": "5270.78"
+    },
+    {
+      "report_month": "2023-10",
+      "count": 7,
+      "total": "6522.82"
+    },
+    {
+      "report_month": "2023-11",
+      "count": 11,
+      "total": "4597.03"
+    },
+    {
+      "report_month": "2023-12",
+      "count": 14,
+      "total": "9865.79"
+    },
+    {
+      "report_month": "2024-01",
+      "count": 15,
+      "total": "16016.67"
+    },
+    {
+      "report_month": "2024-02",
+      "count": 15,
+      "total": "19957.54"
+    },
+    {
+      "report_month": "2024-03",
+      "count": 15,
+      "total": "23010.76"
+    },
+    {
+      "report_month": "2024-04",
+      "count": 15,
+      "total": "21109.29"
+    },
+    {
+      "report_month": "2024-05",
+      "count": 16,
+      "total": "20266.89"
+    },
+    {
+      "report_month": "2024-06",
+      "count": 35,
+      "total": "34098.03"
+    },
+    {
+      "report_month": "2024-07",
+      "count": 52,
+      "total": "55675.43"
+    },
+    {
+      "report_month": "2024-08",
+      "count": 55,
+      "total": "69894.56"
+    },
+    {
+      "report_month": "2024-09",
+      "count": 56,
+      "total": "66382.04"
+    },
+    {
+      "report_month": "2024-10",
+      "count": 56,
+      "total": "70485.70"
+    },
+    {
+      "report_month": "2024-11",
+      "count": 54,
+      "total": "48508.44"
+    },
+    {
+      "report_month": "2024-12",
+      "count": 56,
+      "total": "47946.39"
+    },
+    {
+      "report_month": "2025-01",
+      "count": 56,
+      "total": "55874.39"
+    },
+    {
+      "report_month": "2025-02",
+      "count": 56,
+      "total": "64937.37"
+    },
+    {
+      "report_month": "2025-03",
+      "count": 56,
+      "total": "77772.36"
+    },
+    {
+      "report_month": "2025-04",
+      "count": 56,
+      "total": "67266.03"
+    },
+    {
+      "report_month": "2025-05",
+      "count": 72,
+      "total": "66880.40"
+    },
+    {
+      "report_month": "2025-06",
+      "count": 72,
+      "total": "61233.99"
+    },
+    {
+      "report_month": "2025-07",
+      "count": 72,
+      "total": "70782.51"
+    },
+    {
+      "report_month": "2025-08",
+      "count": 72,
+      "total": "69191.88"
+    },
+    {
+      "report_month": "2025-09",
+      "count": 72,
+      "total": "71950.96"
+    },
+    {
+      "report_month": "2025-10",
+      "count": 72,
+      "total": "65530.33"
+    },
+    {
+      "report_month": "2025-11",
+      "count": 72,
+      "total": "50495.00"
+    },
+    {
+      "report_month": "2025-12",
+      "count": 72,
+      "total": "69118.17"
+    },
+    {
+      "report_month": "2026-01",
+      "count": 72,
+      "total": "92845.87"
+    },
+    {
+      "report_month": "2026-02",
+      "count": 72,
+      "total": "93406.49"
+    },
+    {
+      "report_month": "2026-03",
+      "count": 72,
+      "total": "118805.99"
+    },
+    {
+      "report_month": "2026-04",
+      "count": 72,
+      "total": "115843.76"
+    },
+    {
+      "report_month": "2026-05",
+      "count": 72,
+      "total": "98491.70"
+    },
+    {
+      "report_month": "2026-06",
+      "count": 72,
+      "total": "95358.06"
+    },
+    {
+      "report_month": "2026-07",
+      "count": 72,
+      "total": "96024.22"
+    },
+    {
+      "report_month": "2026-08",
+      "count": 72,
+      "total": "98261.09"
+    }
+  ]
+}

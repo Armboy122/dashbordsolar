@@ -1,0 +1,36 @@
+
+> analysis-solar@0.1.0 build
+> next build
+
+▲ Next.js 16.2.4 (Turbopack)
+- Environments: .env.local, .env
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.7s
+  Running TypeScript ...
+  Finished TypeScript in 3.1s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/12) ...
+  Generating static pages using 7 workers (3/12)
+  Generating static pages using 7 workers (6/12)
+  Generating static pages using 7 workers (9/12)
+✓ Generating static pages using 7 workers (12/12) in 186ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/analysis/history
+├ ƒ /api/analysis/jobs
+├ ƒ /api/analysis/site
+├ ƒ /api/dashboard/latest
+├ ƒ /api/db/health
+├ ƒ /api/maintenance
+├ ƒ /api/reports/import
+├ ƒ /api/sites/history
+├ ○ /prototype
+└ ƒ /sites/[siteId]
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand

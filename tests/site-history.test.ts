@@ -2,10 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   buildSiteHistoryPayload,
   decodeSiteParam,
+  sourcePercentToFraction,
   type SiteHistoryDbRow,
 } from "../src/lib/site-history";
 
 describe("site history helpers", () => {
+  it("converts source percentage points exactly once, including rates below one percent", () => {
+    expect(sourcePercentToFraction("97.651")).toBeCloseTo(0.97651);
+    expect(sourcePercentToFraction("0.886")).toBeCloseTo(0.00886);
+    expect(sourcePercentToFraction(100)).toBe(1);
+    expect(sourcePercentToFraction(0)).toBe(0);
+    expect(sourcePercentToFraction(null)).toBeNull();
+    expect(sourcePercentToFraction(101)).toBeNull();
+  });
   it("decodes Next.js site params from plain, encoded, and catch-all values", async () => {
     await expect(decodeSiteParam({ siteId: "โรงไฟฟ้า A (เหนือ)" })).resolves.toBe("โรงไฟฟ้า A (เหนือ)");
     await expect(decodeSiteParam({ siteId: "โรงไฟฟ้า%20A%20%28เหนือ%29" })).resolves.toBe("โรงไฟฟ้า A (เหนือ)");
@@ -25,7 +34,7 @@ describe("site history helpers", () => {
         import_kwh: "15",
         consumption_kwh: "110",
         self_consumption_kwh: "105",
-        self_consumption_rate: "0.84",
+        self_consumption_rate: "84",
         peak_power_kw: "48",
         peak_ratio: "0.74",
         risk_score: "32",
@@ -44,7 +53,7 @@ describe("site history helpers", () => {
         import_kwh: "14",
         consumption_kwh: "100",
         self_consumption_kwh: "96",
-        self_consumption_rate: "0.81",
+        self_consumption_rate: "81",
         peak_power_kw: "45",
         peak_ratio: "0.72",
         risk_score: "18",

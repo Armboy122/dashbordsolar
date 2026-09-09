@@ -1,0 +1,106 @@
+{
+  "file": "public/manual/AnalysisSolar-V2-User-Guide.pdf",
+  "pageCount": 16,
+  "expectedPages": 16,
+  "orientation": "landscape",
+  "ok": true,
+  "warnings": [],
+  "pages": [
+    {
+      "page": 1,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 2,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 3,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 4,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 5,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 6,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 7,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 8,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 9,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 10,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 11,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 12,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 13,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 14,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 15,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    },
+    {
+      "page": 16,
+      "widthPt": 841.92,
+      "heightPt": 594.96,
+      "a4": true
+    }
+  ]
+}

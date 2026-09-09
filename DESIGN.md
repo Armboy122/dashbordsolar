@@ -1,456 +1,151 @@
-# Solar Ops Dashboard — Design Spec
+# AnalysisSolar — แบบระบบสำหรับผู้ดูแลโซลาร์
 
-A calm, minimal dashboard for the PEA O&M team.
+ปรับปรุง: 9 กันยายน 2026
+สถานะเอกสาร: ข้อตกลงการออกแบบ ไม่ใช่ใบรับรองว่าพัฒนาครบแล้ว ทุกหัวข้อระบุชัดว่า **ทำได้แล้ว** / **ทำได้บางส่วน** / **ข้อเสนอ (ยังไม่มี)**
 
-The home page answers exactly one question:
+## 1. เอกสารนี้มีไว้ทำอะไร
 
-> **Which sites need attention this month?**
+อธิบายว่า AnalysisSolar คืออะไร ใช้ทำงานอะไรได้จริงวันนี้ อะไรยังเป็นแผน และกติกาความถูกต้องที่ห้ามละเมิด เขียนให้ผู้ดูแลที่ไม่ใช่ช่างเทคนิคอ่านเข้าใจ ถ้าอ่านแล้วยังไม่รู้ว่า "ตอนนี้กดอะไรได้จริง" ถือว่าเอกสารนี้ยังไม่ดีพอ
 
-Everything else (consumption, peak, PR, revenue, raw history) lives on the
-site detail page. The home page is for scanning. The detail page is for
-investigating.
+ลำดับการอ่าน:
 
----
+1. เอกสารนี้ — ภาพรวม ขอบเขต และสิ่งที่ยังไม่มี
+2. [docs/ux.md](docs/ux.md) — หน้าจอ เส้นทางใช้งาน สถานะ และเกณฑ์ตรวจรับ
+3. [docs/ui.md](docs/ui.md) — รูปแบบการแสดงผล สี ตัวอักษร มือถือ
+4. [docs/domain-rules.md](docs/domain-rules.md) — ความหมายข้อมูลและกติกาการคำนวณ
+5. [docs/fusionsolar-sync.md](docs/fusionsolar-sync.md) — การดาวน์โหลด/นำเข้าไฟล์จาก Huawei
+6. [docs/gemini-analysis.md](docs/gemini-analysis.md) — ข้อเสนอจาก AI และการเก็บบันทึกซ่อมจริง
+7. [docs/site-count-correction.md](docs/site-count-correction.md) — เหตุผลที่จำนวนไซต์เคยเพี้ยน 71/72/73
 
-## 0. Stack reference
+UX กำหนดว่างานคืออะไร UI กำหนดว่าหน้าตาเป็นอย่างไร domain rules กำหนดว่าเลขหมายความว่าอะไร **ห้ามแก้ปัญหาข้อมูลไม่ตรงกันด้วยการเปลี่ยนสีหรือเปลี่ยนคำ**
 
-This spec targets the existing repo. Do **not** introduce a new framework or
-design library to satisfy it.
+## 2. ผู้ใช้และงานที่ต้องทำได้
 
-- Next.js (App Router), React, TypeScript.
-- Pages: `app/page.tsx` (home) and `app/sites/[siteId]/page.tsx` (detail).
-- Components live under `src/components/`.
-- Data: Drizzle + Postgres, `monthly_reports` table in `src/db/schema.ts`.
-- Risk scoring already exists in `src/lib/scoring.ts` — reuse it, don't rewrite.
+ผู้ใช้หลักคือผู้ดูแลโซลาร์หลายสิบไซต์ ไม่ได้วิเคราะห์ไฟฟ้าเชิงวิศวกรรมเอง ทำงานเป็นรอบเดือน และส่งงานให้ช่างผ่าน LINE
 
----
+คำถามที่ระบบต้องตอบได้ในแต่ละเดือน:
 
-## 1. Product principles
+- เดือนนี้ข้อมูลครบไหม ไซต์ไหนไม่มีรายงาน
+- ไซต์ไหนควรให้ช่างไปดูก่อน และ **หลักฐานคืออะไร**
+- ผลผลิตเดือนนี้เทียบเดือนเดียวกันปีก่อนเป็นอย่างไร
+- เคยแจ้งช่างไปแล้วหรือยัง ช่างเจออะไร แก้แล้วหรือยัง
+- สรุปให้หัวหน้าอ่านได้ไหม โดยไม่ต้องเดา
 
-1. **One question per screen.** Home answers attention only. No KPI grids.
-2. **Quiet by default.** Light purple on white. No gradients, no shadows
-   beyond 1dp, no decorative illustrations, no charts on the home page.
-3. **Words a non-technical reader can parse.** No jargon on the home page.
-   Technical terms (PR, specific yield, peak ratio) only appear in the
-   detail page and the glossary.
-4. **Empty is a real state.** When data is missing, say so. Never render
-   `0`, `—`, or `NaN` in place of missing data.
-5. **Compare, don't dump.** Inverter yield is always shown next to a
-   baseline. A bare value is not allowed on the home page.
+สิ่งที่ระบบ **ไม่ใช่**: ไม่ใช่ระบบมอนิเตอร์สด ไม่ใช่ระบบใบงานเต็มรูปแบบ ไม่ใช่เครื่องมือวินิจฉัยว่าอุปกรณ์เสียหรือปกติ ข้อมูลหลักคือรายงานรายเดือนย้อนหลัง
 
----
+## 3. แนวทางหน้าจอที่เลือก: Inspection Desk
 
-## 2. Visual system
+เลือกทิศทางที่ 2 "โต๊ะตรวจงาน" จากตัวเลือกที่ทบทวนกัน ลักษณะสำคัญ:
 
-### 2.1 Palette — light purple + white
+- เมนูหลักอยู่ **ด้านบนแนวนอน** 4 รายการ ไม่ใช่ sidebar ตั้ง
+- มี **แถบไซต์ด้านซ้าย** กว้างประมาณ 250px ค้นหาและสลับไซต์ได้โดยไม่ต้องย้อนหน้า
+- **กราฟมาก่อน** ในหน้ารายละเอียด กราฟกินความกว้างเต็ม แล้ววางคอลัมน์ข้อมูลปฏิบัติงานไว้ใต้กราฟ
+- โทนสี **ขาว/เทากลาง + เขียวเข้ม** เป็นสีการกระทำและเส้นกราฟหลัก ปีก่อนใช้เส้นประสีอำพัน
+- ตัวอักษรไทยอ่านง่าย (Sarabun) ชื่อไซต์ไทยยาวขึ้นบรรทัดใหม่ ไม่ตัดคำทิ้ง
+- มือถือ 390px ใช้การ์ดแทนตาราง ปุ่มสัมผัสอย่างน้อย 44×44px ไม่มีการเลื่อนแนวนอนของทั้งหน้า
 
-The whole product uses one accent. Status colors are restrained and only
-ever color a small dot, chip border, or 2px bar — never a whole row.
+หลักการที่ทำให้ไม่กลายเป็นแดชบอร์ดสำเร็จรูป: ทุกตัวเลขบอกฐานที่ใช้นับ ทุกป้ายสถานะมีข้อความไม่ใช่แค่สี ทุกข้อสันนิษฐานติดป้ายว่ายังไม่ยืนยัน และ **ไม่มีปุ่มที่กดแล้วไม่เกิดอะไร** — ความสามารถที่ยังไม่มี backend ต้องอยู่ในรายการ "ยังไม่เปิดใช้งาน" ไม่ใช่ปุ่มตาย
 
-| Token              | Hex       | Usage                                     |
-| ------------------ | --------- | ----------------------------------------- |
-| `--bg`             | `#FBFAFE` | Page background                           |
-| `--surface`        | `#FFFFFF` | Card / table surface                      |
-| `--surface-muted`  | `#F5F2FB` | Hover, table stripe, chip background      |
-| `--border`         | `#ECE7F6` | Default border                            |
-| `--border-strong`  | `#D7CEEA` | Focused / selected border                 |
-| `--ink`            | `#1F1B2E` | Primary text                              |
-| `--ink-muted`      | `#6B6781` | Secondary text                            |
-| `--ink-soft`       | `#9A95AE` | Captions, units, empty-state text         |
-| `--primary`        | `#7C5CD3` | Light purple accent                       |
-| `--primary-soft`   | `#EDE6FB` | Tinted backgrounds, badges                |
-| `--primary-strong` | `#5B3FB3` | Hover / pressed / focus ring              |
+## 4. สี่หน้าและสถานะการพัฒนา
 
-Status colors (used sparingly):
+| หน้า | ทำได้แล้ว | ยังไม่มี |
+|---|---|---|
+| ภาพรวม | เลือกเดือน/ขอบเขต, ความครบถ้วน, ยอดผลผลิต, จำนวนไซต์แยกประเภท, กราฟ 12 เดือน + เทียบปีก่อน, การ์ดไซต์ที่ควรดู | ตัวเลขงานค้าง/งานใหม่จากระบบติดตามจริง |
+| ไซต์ทั้งหมด + รายละเอียดไซต์ | ค้นหา/กรอง, แบ่งหน้า, แถบไซต์, กราฟรายไซต์, ค่าพลังงาน, ตารางเทคนิคใน disclosure, ประวัติซ่อมจริง, งานตรวจพร้อมสถานะและประวัติข้ามเดือน, ข้อเสนอ AI ที่บันทึกไว้ | สถานะเปิดใช้งานไซต์ที่มีหลักฐาน |
+| รายการตรวจสอบ | รายการจากการประเมินเดิม + รายการข้อมูลขาด, งานตรวจจริงทุกเดือน (รอตรวจ/แจ้งช่างแล้ว/ได้ผลตรวจ), ประวัติสถานะและผลตรวจเชื่อมบันทึกซ่อม | แนบรูป, เพิ่ม snapshot เดือนใหม่เข้าไปในงานเดิม |
+| รายงานและข้อมูล | สรุปเดือนจากข้อมูลจริง, ที่มาข้อมูล, นำเข้าไฟล์ Plant Report + เริ่มคิว AI, ดูสถานะคิว | แก้ค่ารายเดือน, ทบทวนความขัดแย้ง, ประวัติ sync ในหน้าจอ, ส่งออกไฟล์รายงาน, ตั้งเวลา sync |
 
-| Status  | Token            | Hex       | Meaning                              |
-| ------- | ---------------- | --------- | ------------------------------------ |
-| ok      | `--status-ok`    | `#3F8F5C` | At or above expected yield           |
-| watch   | `--status-warn`  | `#B07A1F` | Slightly below expected              |
-| attention | `--status-bad` | `#B23A48` | Materially below expected            |
-| no data | `--status-empty` | `#9A95AE` | Month not reported                   |
+หน้าที่รวมทั้งสี่หน้าอยู่ที่ `/prototype` อ่านข้อมูลจริงจาก API งานตรวจและประวัติซ่อมบันทึกจริง ดูขอบเขตและข้อจำกัดใน [ระบบตรวจสอบ](docs/inspections.md)
 
-Risk-band thresholds (reuse `riskLevel` from `src/lib/scoring.ts`):
+## 5. ข้อมูลมาจากไหน และแยกเวลากันอย่างไร
 
-- `attention` ← `critical` or `high`
-- `watch` ← `watch`
-- `ok` ← `normal`
+แหล่งข้อมูลเดียวในตอนนี้คือ **Huawei FusionSolar → Reports → Plant Report → By plant → By month** ดาวน์โหลดเป็น Excel รายเดือน แล้วนำเข้าเข้าฐานข้อมูล
 
-### 2.2 Typography
+ต้องแยกสามเวลานี้ตลอด ห้ามยุบรวม:
 
-- System UI stack. Tabular numerals for all numbers (`tabular-nums`).
-- Sizes:
-  - H1 page title: 22 / 28, semibold
-  - Site name: 16 / 22, medium
-  - Body: 14 / 20, regular
-  - Caption / unit: 12 / 16, regular, `--ink-soft`
+1. **เดือนของรายงาน** — เดือนที่ข้อมูลพูดถึง เช่น กุมภาพันธ์ 2026
+2. **เดือนของทะเบียนไซต์ต้นทาง** — เดือนของไฟล์ที่ใช้ยืนยันว่ามีไซต์กี่ไซต์ ล่าสุดที่ยืนยันคือ **สิงหาคม 2026** (อ่านเดือนจริงจาก API)
+3. **เวลานำเข้า/ซิงก์สำเร็จ** — เวลาที่ระบบรับไฟล์เข้าได้จริง
 
-### 2.3 Spacing, radius, borders
+ข้อมูลที่นำเข้าใหม่ครอบคลุม **มิถุนายน 2023 – สิงหาคม 2026** รวม 39 เดือน ทะเบียนล่าสุดคือสิงหาคม 2026 จำนวนไซต์ต้องอ่านจาก API และไม่ใช่การยืนยันจำนวนไซต์ที่เดินเครื่องวันนี้
 
-- Spacing scale: 4, 8, 12, 16, 20, 24, 32.
-- Card/table radius: 14. Chip radius: 999.
-- Borders: 1px `--border`. Selected: 1px `--border-strong`.
-- Shadow: at most `0 1px 2px rgba(31, 27, 46, 0.04)`.
+ข้อความบังคับบนหน้าจอ: ข้อมูลรายเดือนไม่ใช่สถานะอุปกรณ์สด การซิงก์ข้อมูลย้อนหลังสำเร็จไม่ได้พิสูจน์ว่าวันนี้ไซต์ยังเดินอยู่
 
-### 2.4 Motion
+## 6. การดึงข้อมูลย้อนหลังใหม่ทั้งชุด
 
-- 150ms ease-out, `transform` and `opacity` only.
-- Honor `prefers-reduced-motion`.
+ผู้ใช้ต้องการดาวน์โหลดข้อมูลรายเดือนย้อนหลัง **ใหม่ทั้งชุด** จากเมนู Reports / Plant Report / By plant / By month ที่ถูกต้อง แล้วค่อยแทนข้อมูลรายเดือนเดิม เพื่อล้างความไม่แน่ใจว่าเคยดึงจากเมนูผิด
 
----
+สถานะตรวจจาก artifact วันที่ 9 กันยายน 2026: **แทนข้อมูลครบ 39 เดือนแล้ว** จำนวน 1,863 แถว โดยเก็บบันทึกซ่อมและประวัติ AI เดิมไว้ หลักฐาน: `artifacts/source-refresh/replacement-result.json` การปรับ UI รอบนี้ไม่ได้นำเข้าหรือแก้ฐานข้อมูลซ้ำ
 
-## 3. Information architecture
+ลำดับที่ตกลงกัน (ทุกขั้นต้องผ่านก่อนขั้นถัดไป):
 
-Two routes. Three sections on home.
+1. **ดาวน์โหลดเข้าพื้นที่พัก** ไม่เขียนทับข้อมูลที่ใช้งานอยู่ เก็บไฟล์ต้นฉบับไว้ทุกเดือน
+2. **ตรวจความถูกต้องรายไฟล์** — เดือนตรงกับที่ขอ, เป็น By plant / By month, จำนวนไซต์ตรงกับยอดรวมในรายงาน, มีค่า inverter yield อยู่จริง, ชื่อไซต์ไม่ซ้ำหลัง normalize
+3. **เทียบชุดใหม่กับชุดเดิมก่อนแทน** — รายงานว่าเดือนไหนค่าต่าง ต่างเท่าไร ไซต์ไหนมีเพิ่ม ไซต์ไหนหาย และค่าที่ผู้ใช้เคยแก้มือชนกับค่าใหม่ที่ไหน
+4. **ผู้ใช้อนุมัติทีละชุด** ไม่แทนอัตโนมัติ
+5. **แทนข้อมูลแบบมีจุดย้อนกลับ** — เก็บค่าต้นทางเดิม เวลาแทน ผู้สั่ง และเหตุผล
+6. **ประเมินและสร้างสรุปใหม่** สำหรับเดือนที่ถูกแทนและเดือนที่ใช้เป็นฐานเปรียบเทียบ
 
-```
-/                         → Home (the only page operators look at daily)
-  Section 1: Sites that need attention   (risk-ranked overview)
-  Section 2: All sites                   (clean table)
-  Section 3: What the numbers mean       (collapsed glossary)
+ข้อจำกัดที่ต้องแก้ก่อนทำข้อ 5 ได้: เส้นทางนำเข้าจากหน้าเว็บปัจจุบัน (`/api/reports/import`) **ไม่ได้ครอบทั้งไฟล์เป็นทรานแซกชันเดียว** ถ้าพลาดกลางทางอาจอัปเดตไปบางแถว ส่วนตัวนำเข้าฝั่งสคริปต์ซิงก์ทำเป็นทรานแซกชันและมีการล็อกกันชนแล้ว การแทนข้อมูลทั้งชุดต้องใช้เส้นทางที่ปลอดภัยแบบหลัง ไม่ใช่แบบหน้าเว็บปัจจุบัน
 
-/sites/[siteId]           → Site detail (everything else)
-```
+## 7. การเปรียบเทียบและกติกาตัวเลขที่ห้ามละเมิด
 
-Anything not listed above does not belong on the home page.
+- ฐานเปรียบเทียบหลักคือ **เดือนเดียวกันปีก่อน** แสดงชนิดฐานเสมอ
+- กราฟหลักมีสองแบบ: **เส้น** สำหรับดูแนวโน้ม 12 เดือน และ **แท่งจับกลุ่ม** สำหรับเทียบปีต่อปีเดือนต่อเดือน (แท่งจับกลุ่มยังเป็นข้อเสนอ ปัจจุบันมีเฉพาะเส้น + เส้นประปีก่อน)
+- **ไม่มีข้อมูล ≠ ศูนย์** ช่องไม่มีข้อมูลเป็นช่องว่าง เส้นกราฟขาด ห้ามลากผ่าน ห้ามเติมศูนย์
+- **ถ้าฐานเป็นศูนย์หรือขาด ห้ามแสดงเปอร์เซ็นต์** ให้แสดงผลต่างเป็นหน่วยหรือบอกว่าเทียบเปอร์เซ็นต์ไม่ได้
+- ตาราง KPI และกราฟต้องใช้ **ขอบเขตไซต์ชุดเดียวกัน** ค้นหา/กรองเปลี่ยนแค่จำนวนแถวที่เห็น ไม่เปลี่ยนฐานรวม
+- ยอดรวมที่ไม่ครบทุกไซต์ต้องบอกความครอบคลุม
+- **เดือนที่เลือกต้องคงอยู่** เมื่อเข้าไซต์และกดย้อนกลับ รวมถึงขอบเขตและตัวกรอง
+- จำนวนไซต์คำนวณจากข้อมูล ไม่ hardcode 72
+- Self-consumption Rate จากต้นทางเป็นหน่วยเปอร์เซ็นต์ แปลงเป็นเศษส่วนครั้งเดียวเท่านั้น
+- **ไม่แก้สูตรคะแนน ไม่แก้เกณฑ์แจ้งเตือน** ในรอบนี้ ป้ายระดับที่เห็นบนหน้าจอคือผลจากการประเมินเดิม ต้องติดป้ายว่า "การประเมินเดิม" ห้าม map ไปเป็นระดับความสำคัญชุดใหม่โดยอ้างว่าตรงกัน
 
----
+## 8. AI และผลตรวจของช่าง แยกกันเด็ดขาด
 
-## 4. Home page
+**ทำได้แล้ว:** หลังนำเข้าไฟล์สำเร็จและสร้างสรุปใหม่สำเร็จ ระบบจะเข้าคิววิเคราะห์ทุกไซต์ในไฟล์อัตโนมัติ ทำงานเบื้องหลังโดยไม่ต้องเปิดหน้ารอ เก็บผลไว้อ่านย้อนหลังพร้อมรุ่นโมเดลและเวลา เปิดหน้าดูผลที่บันทึกไว้ไม่สร้างคำขอใหม่
 
-The home page compares **inverter yield only**. Every other metric is
-demoted to the detail page.
+**ทำได้แล้ว:** บันทึกซ่อมจริงเก็บลงฐานข้อมูลแบบเพิ่มรายการ ระบุวันที่ สิ่งที่พบ สิ่งที่ทำ ผลลัพธ์ และผู้บันทึก
 
-### 4.1 Header
+**ข้อจำกัดที่ต้องเขียนบนหน้าจอ:**
 
-- H1: `Site health`
-- Sub-line (single sentence, plain language):
-  `Sites are sorted by how much attention they need this month.`
-- Right-aligned month selector. Defaults to the latest month with data.
+- ข้อเสนอ AI คือ **ข้อสันนิษฐานที่ยังไม่ยืนยัน** ไม่ใช่ผลตรวจ ไม่ใช่คำวินิจฉัย และไม่เปลี่ยนคะแนนหรือสถานะงาน
+- ข้อเสนอ AI แยกพื้นที่จากบันทึกของช่างชัดเจน ห้ามผสมในบล็อกเดียวกัน
+- "ช่างแจ้งว่าแก้แล้ว" ไม่เท่ากับ "ยืนยันจบ" การยืนยันต้องมีผู้บันทึกและหลักฐาน
+- บันทึกซ่อมยังไม่มีการแก้ ลบ หรือแนบรูปไฟล์
+- ยังไม่มีระบบยืนยันตัวตน ชื่อผู้บันทึกคือชื่อที่กรอกเอง
+- ถ้าเข้าคิว AI ไม่สำเร็จ ต้องบอกว่า "นำเข้าแล้ว แต่คิวไม่สำเร็จ" ห้ามรายงานว่า AI สำเร็จ
 
-No KPI tiles. No portfolio totals. No charts.
+## 9. LINE
 
-### 4.2 Section 1 — Sites that need attention
+ปุ่มคัดลอกสร้างข้อความให้ผู้ใช้เอาไปวางใน LINE เอง ประกอบด้วยชื่อไซต์ เดือน ข้อเท็จจริงจากรายงาน ข้อจำกัด และคำขอให้ตรวจ ไม่มีรหัสผ่านหรือข้อมูลเชื่อมต่อ
 
-A vertical list, **sorted highest risk first**, of every site that has
-data this month. One row per site. Designed so a non-engineer can scan it
-in five seconds.
+**การคัดลอกไม่ส่งข้อความ และไม่เปลี่ยนสถานะเป็นแจ้งแล้ว** การบันทึกว่าแจ้งช่างแล้วเป็นการกระทำแยกที่ผู้ใช้กดเอง และยังไม่มีที่เก็บจริงในรอบนี้
 
-Each row is a card with four pieces, in this order:
+## 10. ลำดับการพัฒนาต่อ
 
-1. **Status pill** (left edge, `--status-*` color):
-   `Needs attention` / `Watch` / `OK` / `No data`.
-2. **Site name** (medium weight) and capacity in kWp (caption).
-3. **This month's inverter yield** (display number, kWh).
-4. **One short reason in plain language**, e.g.:
-   - `Producing 38% less than usual.`
-   - `Below last year by 22%.`
-   - `No power generated this month.`
-   - `Slightly below recent months.`
-   - `On track.`
+1. ปรับเอกสารและหน้าจอให้ตรงกับความสามารถจริง แยกสิ่งที่ยังไม่มีออกเป็นรายการชัดเจน (รอบนี้)
+2. เพิ่มกราฟแท่งจับกลุ่มเทียบปีต่อปี พร้อมสรุปข้อความและตารางค่าเทียบเท่า
+3. เส้นทางนำเข้าแบบทรานแซกชันเดียว + รุ่นข้อมูลที่แก้ไม่ได้ เพื่อรองรับการแทนข้อมูลย้อนหลังทั้งชุด
+4. ดึงข้อมูลย้อนหลังใหม่เข้าพื้นที่พัก ตรวจ เทียบ ให้ผู้ใช้อนุมัติ แล้วแทน
+5. ระบบติดตามงานเบา ๆ ที่บันทึกได้จริง (รอตรวจ → แจ้งช่างแล้ว → ได้ผลตรวจ) และงานข้ามเดือน
+6. หน้าแก้ค่ารายเดือนพร้อมประวัติและการทบทวนความขัดแย้ง
+7. ประวัติ sync บนหน้าจอ และการตั้งเวลาซิงก์บนเครื่องที่เปิดค้าง
+8. ทดสอบเกณฑ์ความสำคัญชุดใหม่กับข้อมูลย้อนหลังและให้ช่างทบทวน ก่อนเปิดใช้
 
-Optional small chip on the right: a single comparison delta
-(e.g. `−18% vs avg`). One chip max, never three.
+ทุกขั้นต้องระบุว่าอะไรใช้จริง อะไรเป็นต้นแบบ **ห้ามแสดงว่าบันทึก ส่ง หรือซิงก์สำเร็จถ้าไม่ได้เกิดขึ้นจริง**
 
-Rules for Section 1:
+## 11. สิ่งที่ยังไม่มีคำตอบ (ต้องตัดสินจากหลักฐาน ไม่ใช่เดา)
 
-- Show **all** sites. Don't hide low-risk sites — operators want one
-  scrollable list, not a hidden tab.
-- Sort by risk descending. Within the same risk band, sort by the worst
-  delta first.
-- A site with no report this month renders the `No data` pill and a
-  one-line explanation. It does not vanish.
-- The whole row is a link to `/sites/[siteId]`. Hover: `--surface-muted`.
-- Status color appears only on the left pill and a 2px left border. The
-  rest of the row stays neutral.
+- เกณฑ์ตัวเลขของระดับความสำคัญชุดใหม่ ลดลงกี่เปอร์เซ็นต์ ต่อเนื่องกี่เดือน ฐานขั้นต่ำเท่าไร
+- แหล่งข้อมูลสถานะเปิดใช้งานไซต์ที่เชื่อถือได้ (ห้ามเดาจากวงเล็บในชื่อไซต์)
+- รหัสไซต์ถาวรและชื่อพ้อง ก่อนจะรวมหรือเปลี่ยนชื่อไซต์ได้
+- ใครมีสิทธิ์แก้ค่ารายเดือนและปิดงาน
+- รูปแบบไฟล์รายงานส่งออก
+- เครื่องที่จะรันซิงก์ต่อเนื่องและการเฝ้าระวังเมื่อซิงก์ล้ม
+- ระยะเก็บรูปประกอบและที่เก็บไฟล์แนบ
+- เพดานค่าใช้จ่ายรวมของการเรียก AI
 
-This section is the answer to "which sites need attention?". Keep it
-quiet. Resist the urge to add charts, sparklines, or extra numbers here.
+## 12. ข้อห้ามถาวร
 
-### 4.3 Section 2 — All sites (table)
-
-Below Section 1, a single table. This is the section operators use when
-they want exact numbers, not vibes. Still inverter-yield-focused, still
-no secondary metrics.
-
-Columns, in order:
-
-| Column           | Plain-language header     | Notes                                |
-| ---------------- | ------------------------- | ------------------------------------ |
-| Status           | `Status`                  | Same pill as Section 1               |
-| Site name        | `Site`                    | Links to detail page                 |
-| Capacity         | `Size (kWp)`              | Right-aligned, `--ink-soft`          |
-| This month yield | `This month (kWh)`        | Right-aligned, tabular               |
-| vs previous      | `vs last month`           | Signed %, tabular                    |
-| vs site average  | `vs site average`         | Signed %, tabular                    |
-| vs same month LY | `vs same month last year` | Signed %, tabular                    |
-
-Rules:
-
-- One header row, one row per site, alternating `--surface-muted` stripe.
-- Sort: clickable column headers; default sort = same as Section 1
-  (worst risk first).
-- Empty cells render the small text `no data` in `--ink-soft`.
-  Never `0`, `—`, or `N/A`.
-- No totals row, no portfolio row, no sparkline column.
-- Numbers right-aligned, names left-aligned, status left-aligned.
-
-### 4.4 Section 3 — What the numbers mean
-
-A collapsed `<details>` block at the bottom of the page, closed by default.
-Opens to a short glossary of the three comparisons used above and the four
-status pills. Plain language, no formulas. See §6.
-
-This section exists so a new team member can self-serve. It is not the
-primary surface and must not occupy space when closed.
-
-### 4.5 What the home page must NOT show
-
-- Revenue, payback, financial KPIs.
-- Consumption, self-consumption, self-consumption rate.
-- Peak power, peak ratio, performance ratio (PR).
-- Specific yield / specific energy.
-- Any chart, sparkline, or visualization.
-- Risk score as a number (the pill is enough).
-- Reason and action lists from `scoring.ts` (those go on the detail page).
-- Multi-metric KPI strips, donut charts, "portfolio health" widgets.
-
-If a future change requests one of these on the home page, it gets a new
-route instead.
-
----
-
-## 5. Site detail page — `/sites/[siteId]`
-
-Everything that was removed from the home page lives here. The detail
-page is allowed to be denser, because by the time an operator reaches it
-they already know which site they care about.
-
-### 5.1 Header
-
-- H1: site name + capacity in kWp.
-- Sub-line: status pill + the same one-line plain-language reason
-  used in Section 1.
-- Back link to `/`.
-
-### 5.2 This month at a glance
-
-The three inverter-yield comparisons from the home table, but rendered
-larger:
-
-- vs last month
-- vs site average (all months for this site)
-- vs same month last year
-
-Each comparison shows: signed percent, absolute kWh delta, and a small
-status dot. If a comparison cannot be computed, render the no-data
-phrase from §7.
-
-### 5.3 Secondary metrics table
-
-A single table, one row per metric, in this fixed order. This is the
-**only** place these metrics are shown.
-
-| Metric              | Source field             | Unit  |
-| ------------------- | ------------------------ | ----- |
-| Consumption         | `consumption_kwh`        | kWh   |
-| Self-consumption    | `self_consumption_kwh`   | kWh   |
-| Self-consumption rate | `self_consumption_rate` | %     |
-| Peak power          | `peak_power_kw`          | kW    |
-| Performance ratio   | `peak_ratio`             | ratio |
-| Specific yield      | `specific_energy`        | kWh/kWp |
-
-Each row: metric name, current month value, unit, and a 12-month
-sparkline. Missing months are gaps in the sparkline, never zeros.
-
-### 5.4 Reasons & suggested checks
-
-Below the metrics table, render `reasons` and `actions` from
-`scoring.ts` as two short bulleted lists:
-
-- `Why this site is flagged` (`reasons[]`)
-- `Suggested checks` (`actions[]`)
-
-These are the only place the existing Thai-language scoring text appears.
-Keep it as-is from the scoring engine; do not rewrite into English.
-
-### 5.5 History
-
-A simple two-column list of the most recent 12 months: month label and
-inverter yield. No chart needed; the sparklines in §5.3 already carry
-the trend.
-
----
-
-## 6. UI copy guidance
-
-The home page is read by people who are not solar engineers. Use these
-rules for any text shown on `/`.
-
-**Do**
-- Write full, calm sentences. `Producing less than usual.`
-- State the comparison in words, not formulas. `Below last year by 22%.`
-- Use `this month`, `last month`, `last year` — not `MoM`, `YoY`.
-- Use `Needs attention`, `Watch`, `OK`, `No data` for status.
-- Round percentages to whole numbers in narrative copy. Keep one decimal
-  in the table column for precision.
-
-**Don't**
-- Don't use `MoM`, `YoY`, `PR`, `kWh/kWp`, or any acronym on the home page.
-- Don't say `delta`, `variance`, `anomaly`, `outlier`.
-- Don't use exclamation marks, emoji, or color-coded all-caps.
-- Don't render `—`, `N/A`, `null`, `0` for missing data. Always use
-  the `no data` phrase from §7.
-
-**Reference copy table**
-
-| Where          | Text                                                |
-| -------------- | --------------------------------------------------- |
-| Status pill    | `Needs attention`                                   |
-| Status pill    | `Watch`                                             |
-| Status pill    | `OK`                                                |
-| Status pill    | `No data`                                           |
-| Reason (high)  | `Producing far less than usual this month.`        |
-| Reason (med)   | `Producing less than usual this month.`            |
-| Reason (low)   | `Slightly below recent months.`                    |
-| Reason (ok)    | `On track.`                                         |
-| Reason (zero)  | `No power generated this month.`                   |
-| Reason (empty) | `No report received for this month yet.`           |
-
-The detail page may keep the existing Thai operational text from
-`scoring.ts` for reasons/actions, since that page is read by O&M staff
-who already use those phrases on the ground.
-
----
-
-## 7. Empty / no-data states
-
-Missing data is always rendered explicitly.
-
-- Whole site missing this month:
-  - Pill: `No data`
-  - Row text: `No report received for this month yet.`
-- A single comparison can't be computed:
-  - `vs last month` → `No data for last month.`
-  - `vs site average` → `Not enough history yet.`
-  - `vs same month last year` → `No data for the same month last year.`
-- A single table cell:
-  - `no data` in `--ink-soft`, lowercase.
-- No sites at all:
-  - Whole-page message: `No reports imported yet. Import a monthly file to begin.`
-
-The page layout (header, section titles, table headers) always renders
-even when empty so the structure doesn't shift when data arrives.
-
----
-
-## 8. Minimum data shape
-
-The schema in `src/db/schema.ts` already has more fields than the home
-page needs. Don't change it. The home page only needs the shape below.
-The API layer is responsible for computing comparisons — the React
-component must not recompute them on the client.
-
-```ts
-// GET /api/dashboard?month=YYYY-MM  (month optional; defaults to latest)
-interface HomeResponse {
-  monthLabel: string;             // e.g. "2026-04"
-  availableMonths: string[];      // for the month selector
-  sites: HomeSiteRow[];           // already sorted: worst risk first
-}
-
-interface HomeSiteRow {
-  siteId: string;
-  siteName: string;
-  capacityKwp: number | null;
-
-  yieldKwh: number | null;        // null = no report this month
-
-  // Plain-language status, derived from existing scoring.ts riskLevel.
-  status: "attention" | "watch" | "ok" | "no-data";
-  reason: string;                 // one-line plain-language sentence (§6)
-
-  // Three comparisons against inverter_yield_kwh. Each is null when it
-  // can't be computed (no prior month, no history, etc.) — never 0.
-  vsLastMonthPct: number | null;
-  vsSiteAvgPct: number | null;
-  vsSameMonthLastYearPct: number | null;
-}
-```
-
-Notes for the data layer:
-
-- All comparisons are against `inverter_yield_kwh` only.
-- `siteAvg` is the average over every prior month with data, excluding
-  the selected month itself.
-- A missing prior period is `null`, not `0`. The API must distinguish
-  `0 kWh produced` (a real, alarming value) from `no report imported`.
-- `status` is computed from existing `riskLevel` in `scoring.ts`. Do
-  not add a second risk model.
-
-The detail page reuses the same row plus the secondary fields listed
-in §5.3 and the existing `reasons` / `actions` arrays.
-
----
-
-## 9. Components
-
-Keep the component count small. Suggested split (refactor of the
-existing `solar-dashboard.tsx` rather than a rewrite):
-
-- `<HomePage />` — owns the month selector and renders Section 1, 2, 3.
-- `<SiteRow />` — Section 1 list row.
-- `<SiteTable />` — Section 2 table (header + rows).
-- `<StatusPill />` — shared by both sections and the detail header.
-- `<ComparisonCell />` — signed percent with no-data fallback.
-- `<Glossary />` — the closed `<details>` block.
-
-The existing `site-detail.tsx` can stay as the detail-page component; the
-secondary metrics table in §5.3 is its main job. Strip any home-page-only
-UI from it if present.
-
----
-
-## 10. Accessibility
-
-- All text meets WCAG AA contrast on `--bg` and `--surface`.
-- Status is conveyed by both color and the pill text — never color alone.
-- Focus ring: 2px `--primary-strong`, 2px offset.
-- Tab order on home: month selector → Section 1 rows in order → Section 2
-  rows in order → glossary toggle.
-- Tables use `<th scope="col">` headers and a visible caption.
-- The whole site row in Section 1 is a single `<a>` for one clean tab stop
-  per site, not a card-with-button pattern.
-
----
-
-## 11. Out of scope (do not add to home)
-
-- Forecasts / predicted yield.
-- Weather overlays.
-- Financial KPIs (revenue, payback, tariffs).
-- Cross-site benchmarking ("rank vs portfolio").
-- Alerting / notifications UI.
-- Any chart or sparkline on `/`.
-
-If any of these are requested, they get a new route — not a new tile on
-the home page.
-
----
-
-## 12. Definition of done
-
-A change to the dashboard is done when:
-
-1. `/` shows three sections in order: risk-ranked list, table, glossary.
-2. Section 1 lists every site, sorted worst risk first, with one
-   plain-language reason per row and no charts.
-3. Section 2 is a single table of inverter-yield comparisons, no
-   secondary metrics.
-4. No revenue, consumption, peak, PR, or specific-yield numbers appear
-   anywhere on `/`.
-5. Missing data is rendered with the §7 phrases — never `0`, `—`, `NaN`.
-6. Visual tokens come from §2.1–§2.3. No ad-hoc hex values, radii, or
-   shadows in component CSS.
-7. `prefers-reduced-motion` is respected.
-8. TypeScript builds clean with no new `any` introduced.
+ห้ามลบไซต์หรือรายงานเดิมเพียงเพื่อให้ตัวเลขตรงแบบ · ห้ามแทน missing ด้วย 0 · ห้ามแสดงเปอร์เซ็นต์เมื่อฐานเป็นศูนย์หรือขาด · ห้ามสร้างผลตรวจช่างหรือสถานะซิงก์ปลอม · ห้ามเรียกข้อมูลรายเดือนว่าสถานะสด · ห้ามรับรองว่าอุปกรณ์เสียหรือปกติแน่นอนจากรายงานรายเดือน · ห้ามเก็บบัญชี Huawei รหัสผ่าน หรือ session ในเอกสารและ frontend · ห้ามใส่ปุ่มที่ไม่มีการทำงานรองรับ

@@ -145,11 +145,11 @@ type DeclineSignal = {
 
 function assessSite(site: SiteSummary): Assessment {
   if (site.inverterYieldKwh === null) {
-    return { status: "no-data", score: 6, declineCount: 0, reason: "เดือนนี้ยังไม่มีข้อมูล inverter" };
+    return { status: "no-data", score: 6, declineCount: 0, reason: "เดือนนี้ยังไม่มีค่าผลิตไฟ" };
   }
 
   if (site.inverterYieldKwh === 0) {
-    return { status: "attention", score: 9, declineCount: 3, reason: "เดือนนี้ผลิตไฟฟ้าไม่ได้" };
+    return { status: "attention", score: 9, declineCount: 3, reason: "รายงานเดือนนี้ระบุผลผลิต 0 หน่วย ควรตรวจสอบ" };
   }
 
   const signals = collectDeclineSignals(site.comparison);

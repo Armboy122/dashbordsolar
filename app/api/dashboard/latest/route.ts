@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { sql } from "../../../../src/db/client";
 import { buildPortfolioMonthlySeries } from "../../../../src/lib/analytics";
 import { withTimeout } from "../../../../src/lib/async-timeout";
+import {
+  buildDashboardScope,
+  type SourceRoster,
+} from "../../../../src/lib/dashboard-scope";
+import { buildCohortComparisonSeries } from "../../../../src/lib/portfolio-cohort";
 
 export const runtime = "nodejs";
 
@@ -70,9 +75,12 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const requestedMonth = searchParams.get("month")?.trim() || "";
+    const scope =
+      searchParams.get("scope") === "history" ? "history" : "source";
 
-    const rows = (await withTimeout(
-      sql`
+    const [allRows, roster] = await Promise.all([
+      withTimeout(
+        sql`
       select
         site_name,
         report_month,
@@ -91,18 +99,22 @@ export async function GET(request: Request) {
       from monthly_reports
       order by report_month asc, site_name asc
     `,
-      DB_TIMEOUT_MS,
-      "Dashboard query timed out",
-    )) as MonthlyRow[];
+        DB_TIMEOUT_MS,
+        "Dashboard query timed out",
+      ) as Promise<MonthlyRow[]>,
+      loadSourceRoster(),
+    ]);
 
-    const availableMonths = uniqueMonths(rows);
-    const availableYears = uniqueYears(rows);
-    const selectedMonth = availableMonths.includes(requestedMonth) ? requestedMonth : availableMonths[availableMonths.length - 1] ?? "";
-    const latestYear = availableYears[availableYears.length - 1] ?? null;
+    const availableMonths = uniqueMonths(allRows);
+    const availableYears = uniqueYears(allRows);
+    const selectedMonth = availableMonths.includes(requestedMonth)
+      ? requestedMonth
+      : (availableMonths[availableMonths.length - 1] ?? "");
 
     if (!selectedMonth) {
       return NextResponse.json({
         ok: true,
+        scope,
         selectedMonth: "",
         availableMonths: [],
         availableYears: [],
@@ -111,49 +123,149 @@ export async function GET(request: Request) {
           reportCount: 0,
           firstMonth: "",
           latestMonth: "",
+          sourceSiteCount: roster?.names.length ?? null,
+          historicalSiteCount: 0,
+          reportedSiteCount: 0,
+          missingReportCount: 0,
+          missingYieldCount: 0,
+          rosterUpdatedAt: roster?.updatedAt ?? null,
+          rosterReportMonth: roster?.reportMonth ?? null,
+          sourceAvailable: roster !== null,
         },
         portfolio: null,
         portfolioMonthlySeries: [],
+        cohortComparisonSeries: [],
         yearTotals: [],
         plants: [],
       });
     }
 
+    const coverage = buildDashboardScope(allRows, selectedMonth, roster, scope);
+    const rows = coverage.rows;
     const bySite = groupBySite(rows);
-    const selectedRows = rows.filter((row) => row.report_month === selectedMonth);
-    const latestMonth = availableMonths[availableMonths.length - 1] ?? selectedMonth;
+    const selectedBySite = new Map(
+      coverage.monthRows.map((row) => [row.site_name, row]),
+    );
+    const latestMonth =
+      availableMonths[availableMonths.length - 1] ?? selectedMonth;
     const firstMonth = availableMonths[0] ?? selectedMonth;
 
-    const plants = selectedRows.map((row) => scoreEnergyRow(row, bySite.get(row.site_name) ?? []));
+    const plants = coverage.names.map((name) => {
+      const history = bySite.get(name) ?? [];
+      const row = selectedBySite.get(name);
+      if (row) return scoreEnergyRow(row, history);
+      return scoreEnergyRow(
+        {
+          site_name: name,
+          report_month: selectedMonth,
+          inverter_yield_kwh: null,
+          capacity_kwp: history[history.length - 1]?.capacity_kwp ?? null,
+          export_kwh: null,
+          import_kwh: null,
+          consumption_kwh: null,
+          self_consumption_kwh: null,
+          self_consumption_rate: null,
+          peak_power_kw: null,
+          risk_score: null,
+          risk_level: null,
+          reasons_json: JSON.stringify(["ยังไม่มีรายงานสำหรับเดือนที่เลือก"]),
+          actions_json: JSON.stringify(["ตรวจสอบหรือนำเข้ารายงานเดือนนี้"]),
+        },
+        history,
+      );
+    });
     const portfolio = buildPortfolioHeadline(rows, selectedMonth);
-    const portfolioMonthlySeries = buildPortfolioMonthlySeries(
-      rows.map((row) => ({ reportMonth: row.report_month, inverterYieldKwh: row.inverter_yield_kwh })),
-      latestYear ?? undefined,
+    const portfolioMonthlySeries = availableYears.flatMap((year) =>
+      buildPortfolioMonthlySeries(
+        rows.map((row) => ({
+          reportMonth: row.report_month,
+          inverterYieldKwh: row.inverter_yield_kwh,
+        })),
+        year,
+      ),
     );
     const yearTotals = buildYearTotals(rows);
+    // Read-only comparison basis. Does not change scoring, thresholds or stored data.
+    const cohortComparisonSeries = buildCohortComparisonSeries(
+      rows,
+      selectedMonth,
+      12,
+    );
 
     return NextResponse.json({
       ok: true,
+      scope,
       selectedMonth,
       availableMonths,
       availableYears,
       meta: {
-        siteCount: bySite.size,
+        siteCount: plants.length,
         reportCount: rows.length,
         firstMonth,
         latestMonth,
+        sourceSiteCount: coverage.sourceSiteCount,
+        historicalSiteCount: coverage.historicalSiteCount,
+        reportedSiteCount: coverage.reportedSiteCount,
+        missingReportCount: coverage.missingReportCount,
+        missingYieldCount: coverage.missingYieldCount,
+        rosterUpdatedAt: coverage.rosterUpdatedAt,
+        rosterReportMonth: coverage.rosterReportMonth,
+        sourceAvailable: coverage.sourceAvailable,
       },
       portfolio,
       portfolioMonthlySeries,
+      cohortComparisonSeries,
       yearTotals,
       plants: plants.sort((a, b) => sortSiteSummary(a, b)),
     });
   } catch (error) {
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Cannot load dashboard data" },
+      {
+        ok: false,
+        error:
+          error instanceof Error ? error.message : "Cannot load dashboard data",
+      },
       { status: 500 },
     );
   }
+}
+
+async function loadSourceRoster(): Promise<SourceRoster | null> {
+  const tables = await withTimeout(
+    sql`select to_regclass('public.fusionsolar_sync_runs') as runs, to_regclass('public.fusionsolar_sources') as sources`,
+    DB_TIMEOUT_MS,
+    "Roster query timed out",
+  );
+  if (!tables[0]?.runs || !tables[0]?.sources) return null;
+  const result = await withTimeout(
+    sql`
+    with latest as (
+      select report_month, source_sha256, created_at, summary
+      from fusionsolar_sync_runs
+      where (summary->>'expectedSites') is not null
+      order by created_at desc limit 1
+    )
+    select latest.report_month, latest.created_at, latest.summary->>'expectedSites' as expected_sites,
+      array_agg(s.site_name order by s.site_name) as names
+    from latest join fusionsolar_sources s
+      on s.report_month=latest.report_month and s.source_sha256=latest.source_sha256
+    group by latest.report_month, latest.created_at, latest.summary
+  `,
+    DB_TIMEOUT_MS,
+    "Roster query timed out",
+  );
+  const row = result[0];
+  if (!row) return null;
+  const names = row.names as string[];
+  if (names.length !== Number(row.expected_sites))
+    throw new Error(
+      "Source roster is incomplete; sync again before displaying site counts",
+    );
+  return {
+    names,
+    reportMonth: String(row.report_month),
+    updatedAt: new Date(String(row.created_at)).toISOString(),
+  };
 }
 
 function scoreEnergyRow(row: MonthlyRow, siteRows: MonthlyRow[]): SiteSummary {
@@ -179,18 +291,31 @@ function scoreEnergyRow(row: MonthlyRow, siteRows: MonthlyRow[]): SiteSummary {
   };
 }
 
-function buildComparison(row: MonthlyRow, siteRows: MonthlyRow[], current: number | null): YieldComparison {
-  const sorted = siteRows.slice().sort((a, b) => a.report_month.localeCompare(b.report_month));
-  const index = sorted.findIndex((item) => item.report_month === row.report_month);
-  const previous = index > 0 ? toNumber(sorted[index - 1].inverter_yield_kwh) : null;
+function buildComparison(
+  row: MonthlyRow,
+  siteRows: MonthlyRow[],
+  current: number | null,
+): YieldComparison {
+  const sorted = siteRows
+    .slice()
+    .sort((a, b) => a.report_month.localeCompare(b.report_month));
+  const index = sorted.findIndex(
+    (item) => item.report_month === row.report_month,
+  );
+  const previous =
+    index > 0 ? toNumber(sorted[index - 1].inverter_yield_kwh) : null;
   const avg = average(
     sorted
       .filter((item) => item.report_month !== row.report_month)
       .map((item) => toNumber(item.inverter_yield_kwh))
       .filter((value): value is number => value !== null && value > 0),
   );
-  const lastYearRow = sorted.find((item) => item.report_month === shiftYear(row.report_month, -1));
-  const lastYear = lastYearRow ? toNumber(lastYearRow.inverter_yield_kwh) : null;
+  const lastYearRow = sorted.find(
+    (item) => item.report_month === shiftYear(row.report_month, -1),
+  );
+  const lastYear = lastYearRow
+    ? toNumber(lastYearRow.inverter_yield_kwh)
+    : null;
 
   return {
     mom: makeComparison(current, previous),
@@ -199,12 +324,19 @@ function buildComparison(row: MonthlyRow, siteRows: MonthlyRow[], current: numbe
   };
 }
 
-function buildPortfolioHeadline(rows: MonthlyRow[], selectedMonth: string): PortfolioHeadline {
+function buildPortfolioHeadline(
+  rows: MonthlyRow[],
+  selectedMonth: string,
+): PortfolioHeadline {
   const currentRows = rows.filter((row) => row.report_month === selectedMonth);
-  const monthlyYieldKwh = sum(currentRows.map((row) => toNumber(row.inverter_yield_kwh)));
+  const monthlyYieldKwh = sum(
+    currentRows.map((row) => toNumber(row.inverter_yield_kwh)),
+  );
   const yearTotals = buildYearTotals(rows);
   const latestYearTotal = yearTotals[yearTotals.length - 1] ?? null;
-  const cumulativeYieldKwh = sum(rows.map((row) => toNumber(row.inverter_yield_kwh)));
+  const cumulativeYieldKwh = sum(
+    rows.map((row) => toNumber(row.inverter_yield_kwh)),
+  );
 
   return {
     monthlyYieldKwh,
@@ -230,10 +362,16 @@ function buildYearTotals(rows: MonthlyRow[]): YearYield[] {
 
   return Array.from(byYear.entries())
     .sort(([a], [b]) => a - b)
-    .map(([year, value]) => ({ year, yieldKwh: value.yieldKwh, reportCount: value.reportCount }));
+    .map(([year, value]) => ({
+      year,
+      yieldKwh: value.yieldKwh,
+      reportCount: value.reportCount,
+    }));
 }
 
-function buildSiteYearTotals(rows: MonthlyRow[]): Array<{ year: number; yieldKwh: number }> {
+function buildSiteYearTotals(
+  rows: MonthlyRow[],
+): Array<{ year: number; yieldKwh: number }> {
   const byYear = new Map<number, number>();
 
   for (const row of rows) {
@@ -259,7 +397,9 @@ function totalInstalledCapacity(rows: MonthlyRow[]): number | null {
   let hasAny = false;
 
   Array.from(bySite.values()).forEach((siteRows) => {
-    const sorted = siteRows.slice().sort((a, b) => a.report_month.localeCompare(b.report_month));
+    const sorted = siteRows
+      .slice()
+      .sort((a, b) => a.report_month.localeCompare(b.report_month));
     let capacity: number | null = null;
     for (let index = sorted.length - 1; index >= 0; index -= 1) {
       const current = toNumber(sorted[index].capacity_kwp);
@@ -277,9 +417,17 @@ function totalInstalledCapacity(rows: MonthlyRow[]): number | null {
   return hasAny ? total : null;
 }
 
-function makeComparison(current: number | null, baseline: number | null): ComparisonValue {
+function makeComparison(
+  current: number | null,
+  baseline: number | null,
+): ComparisonValue {
   if (current === null || baseline === null || baseline === 0) {
-    return { state: "no-data", deltaPct: null, deltaAbsKwh: null, baselineKwh: baseline };
+    return {
+      state: "no-data",
+      deltaPct: null,
+      deltaAbsKwh: null,
+      baselineKwh: baseline,
+    };
   }
 
   const deltaPct = (current - baseline) / baseline;
@@ -298,9 +446,24 @@ function comparisonState(deltaPct: number): ComparisonState {
 }
 
 function sortSiteSummary(a: SiteSummary, b: SiteSummary) {
-  const rank = (value: ComparisonValue) => (value.state === "bad" ? 0 : value.state === "warn" ? 1 : value.state === "ok" ? 2 : 3);
-  const aWorst = Math.min(rank(a.comparison.mom), rank(a.comparison.siteAvg), rank(a.comparison.yoy));
-  const bWorst = Math.min(rank(b.comparison.mom), rank(b.comparison.siteAvg), rank(b.comparison.yoy));
+  const rank = (value: ComparisonValue) =>
+    value.state === "bad"
+      ? 0
+      : value.state === "warn"
+        ? 1
+        : value.state === "ok"
+          ? 2
+          : 3;
+  const aWorst = Math.min(
+    rank(a.comparison.mom),
+    rank(a.comparison.siteAvg),
+    rank(a.comparison.yoy),
+  );
+  const bWorst = Math.min(
+    rank(b.comparison.mom),
+    rank(b.comparison.siteAvg),
+    rank(b.comparison.yoy),
+  );
 
   if (aWorst !== bWorst) return aWorst - bWorst;
   const aDelta = worstDelta(a.comparison);
@@ -310,14 +473,25 @@ function sortSiteSummary(a: SiteSummary, b: SiteSummary) {
 }
 
 function worstDelta(comparison: YieldComparison): number {
-  const values = [comparison.mom.deltaPct, comparison.siteAvg.deltaPct, comparison.yoy.deltaPct].filter(
-    (value): value is number => value !== null,
-  );
+  const values = [
+    comparison.mom.deltaPct,
+    comparison.siteAvg.deltaPct,
+    comparison.yoy.deltaPct,
+  ].filter((value): value is number => value !== null);
   return values.length ? Math.min(...values) : 0;
 }
 
-function normalizeRiskLevel(value: string | null, score: number): "critical" | "high" | "watch" | "normal" {
-  if (value === "critical" || value === "high" || value === "watch" || value === "normal") return value;
+function normalizeRiskLevel(
+  value: string | null,
+  score: number,
+): "critical" | "high" | "watch" | "normal" {
+  if (
+    value === "critical" ||
+    value === "high" ||
+    value === "watch" ||
+    value === "normal"
+  )
+    return value;
   if (score >= 65) return "critical";
   if (score >= 38) return "high";
   if (score >= 16) return "watch";
@@ -332,7 +506,9 @@ function parseJsonList(value: string | null): string[] {
   if (!value) return [];
   try {
     const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.map((item) => String(item)).filter(Boolean) : [];
+    return Array.isArray(parsed)
+      ? parsed.map((item) => String(item)).filter(Boolean)
+      : [];
   } catch {
     return [];
   }

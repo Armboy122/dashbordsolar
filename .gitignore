@@ -49,3 +49,8 @@ next-env.d.ts
 # local caches
 .hermes/
 cache/
+
+# local agent sessions and working evidence (selected deliverables are tracked explicitly)
+.pi/
+.playwright-cli/
+artifacts/

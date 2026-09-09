@@ -1,0 +1,62 @@
+.as-help .as-main {
+  max-width: 1200px;
+}
+.as-help h1 {
+  margin: 16px 0;
+}
+.as-help .as-notice {
+  margin: 16px 0;
+}
+.as-help-toc {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 24px;
+  margin: 24px 0;
+}
+.as-help-toc a {
+  display: block;
+  padding: 10px 0;
+  min-height: 44px;
+}
+.as-help-section {
+  margin: 24px 0;
+  scroll-margin-top: 90px;
+}
+.as-help-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 18px;
+}
+.as-help-content img {
+  width: 100%;
+  height: auto;
+  border: 1px solid #dde3e9;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  max-height: 720px;
+  object-fit: contain;
+}
+.as-help-content li {
+  margin: 0 0 14px;
+}
+.as-help-content ol {
+  padding-left: 24px;
+}
+.as-help-content > *,
+.as-help-toc > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 800px) {
+  .as-help-content,
+  .as-help-toc {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .as-help .as-topnav {
+    display: flex;
+  }
+  .as-help-content img {
+    max-height: none;
+  }
+}

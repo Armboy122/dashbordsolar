@@ -176,7 +176,7 @@ function parseWorkbook(file, reportMonth) {
   const rows = [];
 
   for (const sheetName of workbook.SheetNames) {
-    const sheetRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: null, raw: false });
+    const sheetRows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, range: 0, defval: null, raw: false });
     rows.push(...parseRows(sheetRows, reportMonth));
   }
 

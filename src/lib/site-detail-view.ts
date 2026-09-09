@@ -66,7 +66,7 @@ export type BuildSiteDetailViewOptions = {
   backHref?: string;
 };
 
-const CHART_COLORS = ["#7c5cd3", "#a98ee9", "#625d74", "#c8bfdc", "#8f88a4", "#5f40b8"];
+const CHART_COLORS = ["#2563eb", "#d97706", "#0f766e", "#64748b", "#be123c", "#0369a1"];
 
 export function buildSiteDetailView(rows: SiteHistoryRow[], options: BuildSiteDetailViewOptions = {}): SiteDetailView {
   const sortedRows = rows.slice().sort((left, right) => left.reportMonth.localeCompare(right.reportMonth));

@@ -1,0 +1,12 @@
+
+> analysis-solar@0.1.0 test
+> vitest run --environment node
+
+
+ RUN  v4.1.5 /Users/sakdithat/Desktop/myproject/analysissolar
+
+
+ Test Files  20 passed (20)
+      Tests  126 passed (126)
+   Start at  18:36:04
+   Duration  756ms (transform 808ms, setup 0ms, import 1.31s, tests 524ms, environment 2ms)

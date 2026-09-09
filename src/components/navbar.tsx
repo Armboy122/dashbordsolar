@@ -9,7 +9,10 @@ export function Navbar() {
           <span className="navbar__mark" aria-hidden>
             <Sun className="navbar__icon" size={18} strokeWidth={2.5} />
           </span>
-          <span>Solar Ops</span>
+          <span className="navbar__brand-text">
+            <span className="navbar__title">Solar Ops</span>
+            <span className="navbar__subtitle">ระบบติดตามโซลาร์</span>
+          </span>
         </Link>
         <div className="navbar__links">
           <Link href="/" className="navbar__link navbar__link--active">

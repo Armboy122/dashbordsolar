@@ -27,8 +27,7 @@ export async function parsePlantReport(file: File): Promise<PlantReportRow[]> {
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
-    const parsed = parseRows(rows, sourceMonth);
+    const parsed = parseSheet(sheet, sourceMonth);
 
     if (parsed.length > 0) {
       return parsed;
@@ -36,6 +35,13 @@ export async function parsePlantReport(file: File): Promise<PlantReportRow[]> {
   }
 
   throw new Error("อ่านไฟล์นี้ไม่ได้: ไม่พบข้อมูล plant report หรือรูปแบบคอลัมน์ไม่ตรงกับ FusionSolar export");
+}
+
+export function parseSheet(sheet: XLSX.WorkSheet, sourceMonth?: string): PlantReportRow[] {
+  // Huawei sometimes declares A4:X74 even though A1 is the title, A2 the
+  // headers, and A3 the first plant. Start at row zero so those cells survive.
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, range: 0, defval: null });
+  return parseRows(rows, sourceMonth);
 }
 
 function readWorkbook(buffer: ArrayBuffer): XLSX.WorkBook {
@@ -58,7 +64,7 @@ function readWorkbook(buffer: ArrayBuffer): XLSX.WorkBook {
   }
 }
 
-function parseRows(rows: unknown[][], sourceMonth?: string): PlantReportRow[] {
+export function parseRows(rows: unknown[][], sourceMonth?: string): PlantReportRow[] {
   const headerIndex = rows.findIndex((row) => row.map(canonicalHeader).includes(canonicalHeader(columns.plantName)));
 
   if (headerIndex >= 0) {
@@ -132,10 +138,9 @@ function isDataRow(row: unknown[]): boolean {
 
 function isFusionSolarDataRow(row: unknown[]): boolean {
   const plantName = String(row[0] || "").trim();
-  const capacity = toNumber(row[2]);
-  const pvYield = toNumber(row[7]);
-  const specificEnergy = toNumber(row[11]);
-
-  return plantName.length > 0 && capacity !== null && (pvYield !== null || specificEnergy !== null);
+  const address = String(row[1] || "").trim();
+  // Headerless FusionSolar exports have 24 fixed columns. A real plant may have
+  // no capacity/yield yet; missing measurements must not remove it from the list.
+  return row.length === 24 && plantName.length > 0 && address.length > 0 &&
+    !/^(total|summary|plant report|รวม)$/i.test(plantName);
 }
-

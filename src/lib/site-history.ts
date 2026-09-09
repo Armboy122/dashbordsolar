@@ -9,6 +9,7 @@ export type SiteHistoryDbRow = {
   import_kwh: string | number | null;
   consumption_kwh: string | number | null;
   self_consumption_kwh: string | number | null;
+  /** Source percentage points (0–100), as stored from Huawei's (%) column. */
   self_consumption_rate: string | number | null;
   peak_power_kw: string | number | null;
   peak_ratio: string | number | null;
@@ -29,6 +30,7 @@ export type SiteHistoryRow = {
   importKwh: number | null;
   consumptionKwh: number | null;
   selfConsumptionKwh: number | null;
+  /** Fraction (0–1) for chart and percentage formatters. */
   selfConsumptionRate: number | null;
   peakPowerKw: number | null;
   peakRatio: number | null;
@@ -93,7 +95,7 @@ export function mapSiteHistoryRow(row: SiteHistoryDbRow): SiteHistoryRow {
     importKwh: toNumber(row.import_kwh),
     consumptionKwh: toNumber(row.consumption_kwh),
     selfConsumptionKwh: toNumber(row.self_consumption_kwh),
-    selfConsumptionRate: toNumber(row.self_consumption_rate),
+    selfConsumptionRate: sourcePercentToFraction(row.self_consumption_rate),
     peakPowerKw: toNumber(row.peak_power_kw),
     peakRatio,
     performanceRatio: peakRatio,
@@ -102,6 +104,11 @@ export function mapSiteHistoryRow(row: SiteHistoryDbRow): SiteHistoryRow {
     reasons: parseJsonArray(row.reasons_json),
     actions: parseJsonArray(row.actions_json),
   };
+}
+
+export function sourcePercentToFraction(value: string | number | null): number | null {
+  const percent = toNumber(value);
+  return percent !== null && percent >= 0 && percent <= 100 ? percent / 100 : null;
 }
 
 function decodeSiteValue(value: string): string {

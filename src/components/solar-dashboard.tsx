@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, Card, Empty, Select, Skeleton, Statistic, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Select, Skeleton } from "antd";
 import { CloudUploadOutlined, ReloadOutlined } from "@ant-design/icons";
 import { parsePlantReport } from "@/src/lib/report-parser";
 import { scorePlants } from "@/src/lib/scoring";
@@ -39,19 +39,33 @@ import {
   type ComparisonValue,
   type SiteSummary,
   type SiteTableRow,
+  type Status,
 } from "../lib/solar-table";
+
+type DashboardScope = "source" | "history";
+
+type DashboardMeta = {
+  siteCount: number;
+  reportCount: number;
+  firstMonth: string;
+  latestMonth: string;
+  sourceSiteCount?: number | null;
+  historicalSiteCount?: number;
+  reportedSiteCount?: number;
+  missingReportCount?: number;
+  missingYieldCount?: number;
+  rosterUpdatedAt?: string | null;
+  rosterReportMonth?: string | null;
+  sourceAvailable?: boolean;
+};
 
 type DashboardResponse = {
   ok: boolean;
   selectedMonth: string;
   availableMonths: string[];
   availableYears: number[];
-  meta: {
-    siteCount: number;
-    reportCount: number;
-    firstMonth: string;
-    latestMonth: string;
-  };
+  scope?: DashboardScope;
+  meta: DashboardMeta;
   portfolio: {
     monthlyYieldKwh: number | null;
     latestYearYieldKwh: number | null;
@@ -80,6 +94,8 @@ type ImportState = {
   siteNames: string[];
 };
 
+type StatusFilter = "all" | "monitor" | Status;
+
 const nullsLastSort: SortingFn<SiteTableRow> = (rowA, rowB, columnId) => {
   const a = rowA.getValue<number | null>(columnId);
   const b = rowB.getValue<number | null>(columnId);
@@ -94,13 +110,24 @@ const statusSortFn: SortingFn<SiteTableRow> = (rowA, rowB) => statusRank[rowA.or
 const thaiTextSort: SortingFn<SiteTableRow> = (rowA, rowB) =>
   rowA.original.siteName.localeCompare(rowB.original.siteName, "th");
 
+function readInitialQuery(): { month: string; scope: DashboardScope } {
+  if (typeof window === "undefined") return { month: "", scope: "source" };
+  const params = new URLSearchParams(window.location.search);
+  const month = params.get("month") ?? "";
+  const scope: DashboardScope = params.get("scope") === "history" ? "history" : "source";
+  return { month, scope };
+}
+
 export function SolarDashboard() {
   const [data, setData] = useState<DashboardResponse | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(() => readInitialQuery().month);
+  const [scope, setScope] = useState<DashboardScope>(() => readInitialQuery().scope);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([{ id: "status", desc: false }]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [importState, setImportState] = useState<ImportState>({
     fileName: "",
     inferredMonth: "",
@@ -114,10 +141,11 @@ export function SolarDashboard() {
   const [importing, setImporting] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const importRef = useRef<HTMLDivElement>(null);
+  const tableSectionRef = useRef<HTMLElement>(null);
   const dashboardAbortRef = useRef<AbortController | null>(null);
   const dashboardRequestRef = useRef(0);
 
-  const loadDashboard = useCallback(async (month = "") => {
+  const loadDashboard = useCallback(async (month = "", nextScope: DashboardScope = "source") => {
     dashboardAbortRef.current?.abort();
     const controller = new AbortController();
     dashboardAbortRef.current = controller;
@@ -128,8 +156,10 @@ export function SolarDashboard() {
     setError(null);
 
     try {
-      const query = month ? `?month=${encodeURIComponent(month)}` : "";
-      const response = await fetch(`/api/dashboard/latest${query}`, { cache: "no-store", signal: controller.signal });
+      const params = new URLSearchParams();
+      if (month) params.set("month", month);
+      params.set("scope", nextScope);
+      const response = await fetch(`/api/dashboard/latest?${params.toString()}`, { cache: "no-store", signal: controller.signal });
       const payload = (await response.json()) as DashboardResponse;
 
       if (requestId !== dashboardRequestRef.current) return;
@@ -158,11 +188,34 @@ export function SolarDashboard() {
   }, []);
 
   useEffect(() => {
-    void loadDashboard();
+    void loadDashboard(selectedMonth, scope);
     return () => {
       dashboardAbortRef.current?.abort();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (selectedMonth) params.set("month", selectedMonth);
+    else params.delete("month");
+    params.set("scope", scope);
+    const query = params.toString();
+    const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    window.history.replaceState(null, "", nextUrl);
+  }, [selectedMonth, scope]);
+
+  function handleMonthChange(month: string) {
+    setSelectedMonth(month);
+    void loadDashboard(month, scope);
+  }
+
+  function handleScopeChange(nextScope: DashboardScope) {
+    if (nextScope === scope) return;
+    setScope(nextScope);
+    void loadDashboard(selectedMonth, nextScope);
+  }
 
   function openImport() {
     setIsImportOpen(true);
@@ -246,7 +299,7 @@ export function SolarDashboard() {
 
       setImportSuccess(`นำเข้าไฟล์ ${importState.fileName} สำเร็จแล้ว`);
       setIsImportOpen(false);
-      await loadDashboard(payload.reportMonth);
+      await loadDashboard(payload.reportMonth, scope);
       resetImportState();
     } catch (submitError) {
       setImportError(submitError instanceof Error ? submitError.message : "ไม่สามารถนำเข้ารายงานได้");
@@ -261,12 +314,16 @@ export function SolarDashboard() {
   const rowsByRisk = useMemo(() => [...rows].sort(compareSiteRowsByRisk), [rows]);
   const monitoringRows = useMemo(() => rowsByRisk.filter((row) => row.status !== "ok"), [rowsByRisk]);
   const yearSelection = data?.yearTotals.find((item) => item.year === effectiveYear) ?? null;
-  const latestYearTotal = data?.portfolio?.latestYearYieldKwh ?? null;
   const monthLabel = formatMonthLabel(selectedMonth);
   const yearLabel = effectiveYear !== null ? formatYearLabel(effectiveYear) : "ยังไม่เลือกปี";
+
+  const yearSeries = useMemo(
+    () => (data?.portfolioMonthlySeries ?? []).filter((point) => point.year === effectiveYear),
+    [data?.portfolioMonthlySeries, effectiveYear],
+  );
   const portfolioChartPoints = useMemo(
-    () => buildPortfolioComparisonPoints(data?.portfolioMonthlySeries ?? [], data?.portfolio?.latestYear ?? undefined),
-    [data?.portfolio?.latestYear, data?.portfolioMonthlySeries],
+    () => buildPortfolioComparisonPoints(yearSeries, effectiveYear ?? undefined),
+    [yearSeries, effectiveYear],
   );
   const portfolioChartScale = useMemo(() => buildPortfolioChartScale(portfolioChartPoints, 720, 280), [portfolioChartPoints]);
   const portfolioChartHasData = portfolioChartPoints.some(
@@ -283,17 +340,31 @@ export function SolarDashboard() {
     const series = data?.portfolioMonthlySeries ?? [];
     const raw = findMonthDelta(series as PortfolioMonthlySeriesPoint[], selectedMonth);
     if (!raw || raw.deltaAbsKwh === null || raw.deltaPct === null) return null;
-    return { abs: raw.deltaAbsKwh, pct: raw.deltaPct };
+    return { abs: raw.deltaAbsKwh, pct: raw.deltaPct, baselineKwh: raw.previousYearKwh };
   }, [data?.portfolioMonthlySeries, selectedMonth]);
 
+  const previousYearMonthLabel = useMemo(() => {
+    if (!selectedMonth) return "";
+    const [yearPart, monthPart] = selectedMonth.split("-");
+    const year = Number(yearPart);
+    if (!Number.isFinite(year) || !monthPart) return "";
+    return formatMonthLabel(`${year - 1}-${monthPart}`);
+  }, [selectedMonth]);
+
   const availableMonthsInYear = useMemo(
-    () => (data?.portfolioMonthlySeries ?? []).filter((p) => p.year === effectiveYear && p.totalYieldKwh !== null).length,
-    [data?.portfolioMonthlySeries, effectiveYear],
+    () => yearSeries.filter((p) => p.totalYieldKwh !== null).length,
+    [yearSeries],
   );
 
-  const attentionCount = useMemo(() => monitoringRows.filter((r) => r.status === "attention").length, [monitoringRows]);
-  const watchCount = useMemo(() => monitoringRows.filter((r) => r.status === "watch").length, [monitoringRows]);
-  const reviewCount = useMemo(() => monitoringRows.filter((r) => r.status === "review").length, [monitoringRows]);
+  const filteredRows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (query && !row.siteName.toLowerCase().includes(query)) return false;
+      if (statusFilter === "all") return true;
+      if (statusFilter === "monitor") return row.status !== "ok";
+      return row.status === statusFilter;
+    });
+  }, [rows, searchQuery, statusFilter]);
 
   const columns = useMemo<ColumnDef<SiteTableRow>[]>(
     () => [
@@ -302,7 +373,7 @@ export function SolarDashboard() {
         header: siteTableHeaderLabels.status,
         accessorFn: (row) => statusRank[row.status],
         sortingFn: statusSortFn,
-        cell: ({ row }) => <StatusTag status={row.original.status} />,
+        cell: ({ row }) => <StatusChip status={row.original.status} />,
       },
       {
         id: "siteName",
@@ -313,13 +384,13 @@ export function SolarDashboard() {
           <div className="site-name-cell">
             <Link
               className="site-table__link"
-              href={`/sites/${encodeURIComponent(row.original.siteName)}?month=${encodeURIComponent(selectedMonth)}`}
+              href={`/sites/${encodeURIComponent(row.original.siteName)}?month=${encodeURIComponent(selectedMonth)}&scope=${scope}`}
             >
               {row.original.siteName}
             </Link>
             <span className="site-name-cell__sub">
               {row.original.capacityKwp === null
-                ? "ยังไม่ระบุกำลังติดตั้ง"
+                ? "ยังไม่ระบุขนาดระบบ"
                 : `${formatNumber(row.original.capacityKwp)} kWp`}
             </span>
           </div>
@@ -327,7 +398,7 @@ export function SolarDashboard() {
       },
       {
         id: "monthYieldKwh",
-        header: siteTableHeaderLabels.monthYieldKwh,
+        header: "ไฟฟ้าเดือนนี้ (หน่วย)",
         accessorKey: "monthYieldKwh",
         sortingFn: nullsLastSort,
         cell: ({ row }) =>
@@ -335,7 +406,7 @@ export function SolarDashboard() {
       },
       {
         id: "yearYieldKwh",
-        header: siteTableHeaderLabels.yearYieldKwh,
+        header: "รวมปีที่เลือก (หน่วย)",
         accessorKey: "yearYieldKwh",
         sortingFn: nullsLastSort,
         cell: ({ row }) =>
@@ -343,7 +414,7 @@ export function SolarDashboard() {
       },
       {
         id: "vsLastMonthPct",
-        header: "เดือนก่อน",
+        header: "เทียบเดือนก่อน",
         accessorKey: "vsLastMonthPct",
         sortingFn: nullsLastSort,
         cell: ({ row }) => {
@@ -354,7 +425,7 @@ export function SolarDashboard() {
             <>
               <span className="comparison-cell__pct">{formatSignedPercent(pct)}</span>
               {abs !== null && (
-                <span className="comparison-cell__abs">{abs >= 0 ? "+" : ""}{formatNumber(abs)} kWh</span>
+                <span className="comparison-cell__abs">{abs >= 0 ? "+" : ""}{formatNumber(abs)} หน่วย</span>
               )}
             </>
           );
@@ -362,7 +433,7 @@ export function SolarDashboard() {
       },
       {
         id: "vsSiteAvgPct",
-        header: "ค่าเฉลี่ยไซต์",
+        header: "เทียบค่าเฉลี่ยไซต์",
         accessorKey: "vsSiteAvgPct",
         sortingFn: nullsLastSort,
         cell: ({ row }) => {
@@ -373,7 +444,7 @@ export function SolarDashboard() {
             <>
               <span className="comparison-cell__pct">{formatSignedPercent(pct)}</span>
               {abs !== null && (
-                <span className="comparison-cell__abs">{abs >= 0 ? "+" : ""}{formatNumber(abs)} kWh</span>
+                <span className="comparison-cell__abs">{abs >= 0 ? "+" : ""}{formatNumber(abs)} หน่วย</span>
               )}
             </>
           );
@@ -381,7 +452,7 @@ export function SolarDashboard() {
       },
       {
         id: "vsLastYearPct",
-        header: "YoY (ปีก่อน)",
+        header: "เทียบเดือนเดียวกันปีก่อน",
         accessorKey: "vsLastYearPct",
         sortingFn: nullsLastSort,
         cell: ({ row }) => {
@@ -392,19 +463,18 @@ export function SolarDashboard() {
             <>
               <span className="comparison-cell__pct">{formatSignedPercent(pct)}</span>
               {abs !== null && (
-                <span className="comparison-cell__abs">{abs >= 0 ? "+" : ""}{formatNumber(abs)} kWh</span>
+                <span className="comparison-cell__abs">{abs >= 0 ? "+" : ""}{formatNumber(abs)} หน่วย</span>
               )}
             </>
           );
         },
       },
     ],
-    [selectedMonth],
+    [selectedMonth, scope],
   );
 
-
   const table = useReactTable({
-    data: rows,
+    data: filteredRows,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
@@ -414,14 +484,14 @@ export function SolarDashboard() {
   });
 
   if (loading) return <LoadingScreen />;
-  if (error) return <ErrorScreen message={error} onRetry={() => void loadDashboard(selectedMonth)} />;
+  if (error) return <ErrorScreen message={error} onRetry={() => void loadDashboard(selectedMonth, scope)} />;
 
   if (!data || rows.length === 0 || !data.portfolio) {
     return (
       <EmptyScreen
         monthOptions={data?.availableMonths ?? []}
         selectedMonth={selectedMonth}
-        onMonthChange={(month) => void loadDashboard(month)}
+        onMonthChange={(month) => void loadDashboard(month, scope)}
         importPanel={
           <ImportPanel
             fileName={importState.fileName}
@@ -442,18 +512,36 @@ export function SolarDashboard() {
     );
   }
 
+  const meta = data.meta;
+  const totalSites = data.plants.length;
+  const reportedCount = meta.reportedSiteCount ?? totalSites - (meta.missingReportCount ?? 0);
+  const missingCount = meta.missingReportCount ?? 0;
+  const sourceRosterMissing = scope === "source" && (meta.sourceSiteCount == null || meta.sourceAvailable === false);
+  const topMonitoring = monitoringRows.slice(0, 4);
+
+  function showAllMonitoring() {
+    setStatusFilter("monitor");
+    setSearchQuery("");
+    setTimeout(() => tableSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
+
+  function resetTableFilters() {
+    setStatusFilter("all");
+    setSearchQuery("");
+  }
+
   return (
     <main className="dashboard-shell">
       <header className="page-head">
         <div>
-          <h1>สรุปไซต์ที่ต้องดูตอนนี้</h1>
-          <p className="page-sub">เลือกเดือนเพื่อดูผลผลิตรวม เทียบปีก่อน และไซต์ที่ควรตรวจสอบก่อน</p>
+          <h1>ภาพรวมผลผลิตไฟฟ้าโซลาร์</h1>
+          <p className="page-sub">เดือนนี้ผลิตไฟได้เท่าไร ไซต์ไหนต้องดู และต้องทำอะไรต่อ</p>
         </div>
 
-        <div className="toolbar-meta stacked compact-controls">
+        <div className="toolbar-meta compact-controls">
           <label className="month-select">
-            <span>เดือน</span>
-            <select value={selectedMonth} onChange={(event) => void loadDashboard(event.target.value)}>
+            <span>เดือนที่ดู</span>
+            <select value={selectedMonth} onChange={(event) => handleMonthChange(event.target.value)}>
               {data.availableMonths.slice().reverse().map((month) => (
                 <option key={month} value={month}>
                   {formatMonthLabel(month)}
@@ -467,35 +555,119 @@ export function SolarDashboard() {
         </div>
       </header>
 
-      <AlertBanner attention={attentionCount} watch={watchCount} review={reviewCount} monitoringRows={monitoringRows} />
+      <section className="coverage-strip" aria-label="ขอบเขตข้อมูลที่แสดง">
+        <div className="scope-toggle" role="group" aria-label="เลือกขอบเขตรายชื่อไซต์">
+          <button
+            type="button"
+            className={`scope-toggle__button${scope === "source" ? " scope-toggle__button--active" : ""}`}
+            aria-pressed={scope === "source"}
+            onClick={() => handleScopeChange("source")}
+          >
+            รายชื่อจากการซิงก์ล่าสุด
+          </button>
+          <button
+            type="button"
+            className={`scope-toggle__button${scope === "history" ? " scope-toggle__button--active" : ""}`}
+            aria-pressed={scope === "history"}
+            onClick={() => handleScopeChange("history")}
+          >
+            รวมประวัติไซต์เก่า
+          </button>
+        </div>
+
+        <ul className="coverage-strip__facts">
+          <li className="coverage-strip__fact">
+            <strong>{totalSites}</strong> ไซต์ในมุมมองนี้
+          </li>
+          <li className="coverage-strip__fact">
+            มีรายงาน {monthLabel} แล้ว <strong>{reportedCount}</strong> ไซต์
+          </li>
+          {missingCount > 0 && (
+            <li className="coverage-strip__fact coverage-strip__fact--warn">
+              ยังไม่มีรายงาน <strong>{missingCount}</strong> ไซต์
+            </li>
+          )}
+          {(meta.missingYieldCount ?? 0) > 0 && (
+            <li className="coverage-strip__fact coverage-strip__fact--warn">
+              ยังไม่มีค่าผลิตไฟ <strong>{meta.missingYieldCount}</strong> ไซต์
+            </li>
+          )}
+          {scope === "history" && (meta.historicalSiteCount ?? 0) > 0 && (
+            <li className="coverage-strip__fact">
+              รวมไซต์เก่าที่ไม่ได้อยู่ในรายชื่อซิงก์ล่าสุดอีก <strong>{meta.historicalSiteCount}</strong> ไซต์
+            </li>
+          )}
+          {meta.rosterUpdatedAt && (
+            <li className="coverage-strip__fact">
+              อัปเดตรายชื่อไซต์เมื่อ {formatDateTimeLabel(meta.rosterUpdatedAt)}
+              {meta.rosterReportMonth ? ` (รายชื่อจากรายงาน ${formatMonthLabel(meta.rosterReportMonth)})` : ""}
+            </li>
+          )}
+        </ul>
+
+        {sourceRosterMissing && (
+          <p className="coverage-strip__note">
+            ยังไม่มีรายชื่อจากการซิงก์ล่าสุด — ตอนนี้แสดงตามไซต์ที่มีรายงานใน{monthLabel} ไม่ได้ยืนยันว่าเป็นไซต์ที่ใช้งานอยู่ทั้งหมด
+          </p>
+        )}
+      </section>
 
       {importSuccess && !isImportOpen && (
         <Alert type="success" message={importSuccess} showIcon closable onClose={() => setImportSuccess(null)} />
       )}
 
       <section className="summary-grid" aria-label="สรุปผลผลิต">
-        <SummaryCard
-          label={`เดือนนี้ (${monthLabel})`}
-          value={formatNumber(data.portfolio.monthlyYieldKwh)}
-          unit="kWh"
-          delta={monthDelta}
-          note={`สะสม: ${formatNumber(data.portfolio.cumulativeYieldKwh)} kWh`}
-        />
-        <SummaryCard
-          label={data.portfolio.latestYear ? `ปีล่าสุด (${formatYearLabel(data.portfolio.latestYear)})` : "ปีล่าสุด"}
-          value={formatNumber(latestYearTotal)}
-          unit="kWh"
-          note={data.portfolio.latestYear ? `${formatYearLabel(data.portfolio.latestYear)}: ผลรวมปีนี้` : "ปีล่าสุด"}
-        />
-        <SummaryCard
-          label="ปีที่เลือก"
-          value={formatNumber(yearSelection?.yieldKwh ?? null)}
-          unit="kWh"
-          note={availableMonthsInYear > 0 ? `จาก ${availableMonthsInYear} เดือน` : yearLabel}
-          control={
+        <article className="summary-card summary-card--primary">
+          <p className="summary-card__label">ไฟฟ้าที่ผลิตได้เดือนนี้</p>
+          <p className="summary-card__value">
+            {formatNumber(data.portfolio.monthlyYieldKwh)} <span>หน่วย</span>
+          </p>
+          <p className="summary-card__note">
+            {monthLabel} · 1 หน่วย = 1 kWh
+          </p>
+          <p className="summary-card__note">
+            สะสมทั้งหมด {formatNumber(data.portfolio.cumulativeYieldKwh)} หน่วย
+          </p>
+        </article>
+
+        <article className="summary-card">
+          <p className="summary-card__label">เทียบเดือนเดียวกันปีก่อน</p>
+          {monthDelta ? (
+            <>
+              <p className={`summary-card__value summary-card__value--${monthDelta.abs > 0 ? "up" : monthDelta.abs < 0 ? "down" : "flat"}`}>
+                {formatSignedPercent(monthDelta.pct)}
+              </p>
+              <p className="summary-card__note">
+                {monthDelta.abs >= 0 ? "มากกว่า" : "น้อยกว่า"}
+                {previousYearMonthLabel ? `${previousYearMonthLabel} ` : "ปีก่อน "}
+                {formatNumber(Math.abs(monthDelta.abs))} หน่วย
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="summary-card__value summary-card__value--flat">—</p>
+              <p className="summary-card__note">ยังไม่มีข้อมูลเดือนเดียวกันของปีก่อนให้เทียบ</p>
+            </>
+          )}
+        </article>
+
+        <article className="summary-card">
+          <p className="summary-card__label">ขนาดระบบติดตั้งรวม</p>
+          <p className="summary-card__value">
+            {formatNumber(data.portfolio.installedCapacityKwp)} <span>kWp</span>
+          </p>
+          <p className="summary-card__note">kWp = ขนาดระบบติดตั้ง จาก {totalSites} ไซต์ในมุมมองนี้</p>
+        </article>
+
+        <article className="summary-card">
+          <div className="summary-card__head">
+            <p className="summary-card__label">ผลรวมปีที่เลือก</p>
             <label className="summary-card__select">
               <span className="visually-hidden">เลือกปี</span>
-              <select value={effectiveYear ?? ""} onChange={(event) => setSelectedYear(event.target.value ? Number(event.target.value) : null)}>
+              <select
+                value={effectiveYear ?? ""}
+                onChange={(event) => setSelectedYear(event.target.value ? Number(event.target.value) : null)}
+              >
                 {availableYears.map((year) => (
                   <option key={year} value={year}>
                     {formatYearLabel(year)}
@@ -503,18 +675,19 @@ export function SolarDashboard() {
                 ))}
               </select>
             </label>
-          }
-        />
-        <SummaryCard
-          label="กำลังติดตั้งรวม"
-          value={formatNumber(data.portfolio.installedCapacityKwp)}
-          unit="kWp"
-          note={`${data.meta.siteCount} ไซต์`}
-        />
+          </div>
+          <p className="summary-card__value">
+            {formatNumber(yearSelection?.yieldKwh ?? null)} <span>หน่วย</span>
+          </p>
+          <p className="summary-card__note">
+            {yearLabel}
+            {availableMonthsInYear > 0 ? ` · จาก ${availableMonthsInYear} เดือนที่มีข้อมูล` : ""}
+          </p>
+        </article>
       </section>
 
       <PortfolioComparisonChart
-        currentYear={data.portfolio.latestYear}
+        effectiveYear={effectiveYear}
         points={portfolioChartPoints}
         scale={portfolioChartScale}
         hasData={portfolioChartHasData}
@@ -525,128 +698,199 @@ export function SolarDashboard() {
       <section aria-labelledby="attention-heading" className="section-block">
         <div className="section-head">
           <div>
-            <h2 id="attention-heading">ศูนย์ควบคุมความเสี่ยง (Risk Command Center)</h2>
+            <h2 id="attention-heading">ไซต์ที่ต้องติดตาม</h2>
           </div>
-          <p className="section-note">แสดงเฉพาะไซต์ที่ต้องดำเนินการ จัดเรียงตามความเร่งด่วน</p>
+          <p className="section-note">แสดงสูงสุด 4 ไซต์แรก จัดเรียงตามความเร่งด่วน</p>
         </div>
 
         {monitoringRows.length === 0 ? (
           <div className="empty-state empty-state--soft">
-            <p className="empty-state__title">เดือนนี้ทุกไซต์อยู่ในเกณฑ์ปกติ ✓</p>
+            <p className="empty-state__title">เดือนนี้ทุกไซต์อยู่ในเกณฑ์ปกติ</p>
             <p className="empty-state__text">ไม่มีไซต์ที่ต้องดำเนินการในขณะนี้</p>
           </div>
         ) : (
-          <div className="risk-list">
-            {monitoringRows.map((row) => {
-              const isRecovering =
-                row.comparison.mom.deltaPct !== null &&
-                row.comparison.mom.deltaPct > 0 &&
-                ((row.comparison.yoy.deltaPct !== null && row.comparison.yoy.deltaPct < 0) ||
-                  (row.comparison.siteAvg.deltaPct !== null && row.comparison.siteAvg.deltaPct < 0));
-              return (
-                <Link
-                  key={row.siteId}
-                  href={`/sites/${encodeURIComponent(row.siteName)}?month=${encodeURIComponent(data.selectedMonth)}`}
-                  className={`risk-card risk-card--${row.status}`}
-                >
-                  <div className="risk-card__top">
-                    <StatusTag status={row.status} />
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      {isRecovering && <span className="recovery-indicator">↑ ฟื้นจากเดือนก่อน</span>}
-                      <span className="risk-card__yield">{row.monthYieldKwh === null ? "ไม่มีข้อมูล" : `${formatNumber(row.monthYieldKwh)} kWh`}</span>
+          <>
+            <div className="risk-list">
+              {topMonitoring.map((row) => {
+                const isRecovering =
+                  row.comparison.mom.deltaPct !== null &&
+                  row.comparison.mom.deltaPct > 0 &&
+                  ((row.comparison.yoy.deltaPct !== null && row.comparison.yoy.deltaPct < 0) ||
+                    (row.comparison.siteAvg.deltaPct !== null && row.comparison.siteAvg.deltaPct < 0));
+                const isNoData = row.status === "no-data";
+                return (
+                  <Link
+                    key={row.siteId}
+                    href={`/sites/${encodeURIComponent(row.siteName)}?month=${encodeURIComponent(data.selectedMonth)}&scope=${scope}`}
+                    className={`risk-card risk-card--${row.status}`}
+                  >
+                    <div className="risk-card__top">
+                      <StatusChip status={row.status} />
+                      <div className="risk-card__flags">
+                        {isRecovering && <span className="recovery-indicator">↑ ฟื้นจากเดือนก่อน</span>}
+                        <span className="risk-card__yield">
+                          {row.monthYieldKwh === null ? "ไม่มีข้อมูล" : `${formatNumber(row.monthYieldKwh)} หน่วย`}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="risk-card__body">
-                    <h3>{row.siteName}</h3>
-                    <p className="risk-card__caption">
-                      {row.capacityKwp === null ? "ยังไม่ระบุกำลังติดตั้ง" : `${formatNumber(row.capacityKwp)} kWp`}
-                    </p>
-                    <p className="risk-card__reason">{row.reason}</p>
-                  </div>
+                    <div className="risk-card__body">
+                      <h3>{row.siteName}</h3>
+                      <p className="risk-card__caption">
+                        {row.capacityKwp === null ? "ยังไม่ระบุขนาดระบบ" : `${formatNumber(row.capacityKwp)} kWp`}
+                      </p>
+                      <p className="risk-card__reason">
+                        {isNoData
+                          ? "ยังไม่มีค่าผลิตไฟเดือนนี้ กรุณาตรวจสอบข้อมูลรายงาน"
+                          : row.reason}
+                      </p>
+                    </div>
 
-                  <div className="risk-card__meta">
-                    <ComparisonBlock label="ปีที่แล้ว (YoY)" comparison={row.comparison.yoy} />
-                    <ComparisonBlock label="ค่าเฉลี่ยไซต์" comparison={row.comparison.siteAvg} />
-                    <ComparisonBlock label="เดือนก่อน (MoM)" comparison={row.comparison.mom} secondary />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+                    {!isNoData && (
+                      <div className="risk-card__meta">
+                        <ComparisonBlock label="เทียบเดือนเดียวกันปีก่อน" comparison={row.comparison.yoy} />
+                        <ComparisonBlock label="เทียบค่าเฉลี่ยไซต์" comparison={row.comparison.siteAvg} />
+                        <ComparisonBlock label="เทียบเดือนก่อน" comparison={row.comparison.mom} secondary />
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {monitoringRows.length > topMonitoring.length && (
+              <button type="button" className="link-button" onClick={showAllMonitoring}>
+                ดูไซต์ที่ต้องติดตามทั้งหมด ({monitoringRows.length} ไซต์) ↓
+              </button>
+            )}
+          </>
         )}
       </section>
 
-      <section aria-labelledby="table-heading" className="section-block">
+      <section aria-labelledby="table-heading" className="section-block" ref={tableSectionRef}>
         <div className="section-head table-head">
           <div>
-            <h2 id="table-heading">ตารางรายละเอียดของแต่ละไซต์</h2>
+            <h2 id="table-heading">รายละเอียดแต่ละไซต์</h2>
           </div>
-          <p className="section-note">เรียง/คลิกหัวตารางเพื่อจัดลำดับไซต์ และคลิกชื่อไซต์เพื่อดูประวัติ</p>
           <div className="table-head-meta">
-            <span className="meta-pill">{data.meta.siteCount} ไซต์</span>
             <span className="meta-pill">{monthLabel}</span>
             <span className="meta-pill">{yearLabel}</span>
+            <span className="meta-pill meta-pill--strong">
+              แสดง {filteredRows.length} จาก {totalSites} ไซต์
+            </span>
           </div>
         </div>
 
-        <div className="table-wrap table-wrap--elevated">
-          <table className="site-table site-table--pretty">
-            <caption className="visually-hidden">รายละเอียดไซต์ทั้งหมดสำหรับเดือนที่เลือก</caption>
-            <thead>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const isRight = rightAlignedColumnIds.has(header.id);
-                    return (
-                      <th key={header.id} className={`th ${isRight ? "th--right" : ""}`}>
-                        {header.column.getCanSort() ? (
-                          <button
-                            type="button"
-                            className="th-button"
-                            onClick={() => header.column.toggleSorting()}
-                          >
-                            <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
-                            <span className="th-arrow" aria-hidden>
-                              {{ asc: "↑", desc: "↓" }[header.column.getIsSorted() as string] ?? "↕"}
-                            </span>
-                          </button>
-                        ) : (
-                          <div className="th-button">
-                            <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
-                          </div>
-                        )}
-                      </th>
-                    );
-                  })}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map((row) => (
-                <tr key={row.id}>
-                  {row.getVisibleCells().map((cell) => {
-                    const colId = cell.column.id;
-                    const isRight = rightAlignedColumnIds.has(colId);
-                    const isPct = percentageColumnIds.has(colId);
-                    const pctVal = isPct ? (cell.getValue() as number | null) : null;
-                    const colorClass = isPct
-                      ? (pctVal === null ? "muted" : pctVal < 0 ? "danger" : pctVal > 0 ? "success" : "")
-                      : "";
-                    return (
-                      <td
-                        key={cell.id}
-                        className={[isRight ? "num" : "", colorClass].filter(Boolean).join(" ")}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="filter-bar">
+          <label className="field filter-bar__search">
+            <span>ค้นหาชื่อไซต์</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="พิมพ์ชื่อไซต์…"
+            />
+          </label>
+          <label className="field">
+            <span>กรองตามสถานะ</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
+              <option value="all">ทุกสถานะ</option>
+              <option value="monitor">เฉพาะที่ต้องติดตาม</option>
+              <option value="attention">{statusLabel.attention}</option>
+              <option value="watch">{statusLabel.watch}</option>
+              <option value="review">{statusLabel.review}</option>
+              <option value="ok">{statusLabel.ok}</option>
+              <option value="no-data">{statusLabel["no-data"]}</option>
+            </select>
+          </label>
         </div>
+
+        {filteredRows.length === 0 ? (
+          <div className="empty-state empty-state--soft no-results">
+            <p className="empty-state__title">ไม่พบไซต์ที่ตรงกับการค้นหา</p>
+            <p className="empty-state__text">ลองเปลี่ยนคำค้นหรือล้างตัวกรองเพื่อดูไซต์ทั้งหมด</p>
+            <button type="button" className="primary-button" onClick={resetTableFilters}>
+              ล้างการค้นหาและตัวกรอง
+            </button>
+          </div>
+        ) : (
+          <div className="table-wrap table-wrap--elevated">
+            <table className="site-table site-table--pretty">
+              <caption className="visually-hidden">
+                รายละเอียดไซต์สำหรับ{monthLabel} แสดง {filteredRows.length} จาก {totalSites} ไซต์
+              </caption>
+              <thead>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => {
+                      const isRight = rightAlignedColumnIds.has(header.id);
+                      const sorted = header.column.getIsSorted();
+                      return (
+                        <th
+                          key={header.id}
+                          className={`th ${isRight ? "th--right" : ""}`}
+                          aria-sort={
+                            header.column.getCanSort()
+                              ? sorted === "asc"
+                                ? "ascending"
+                                : sorted === "desc"
+                                  ? "descending"
+                                  : "none"
+                              : undefined
+                          }
+                        >
+                          {header.column.getCanSort() ? (
+                            <button
+                              type="button"
+                              className="th-button"
+                              onClick={() => header.column.toggleSorting()}
+                              aria-label={`เรียงตาม${flexRender(header.column.columnDef.header, header.getContext())}`}
+                            >
+                              <span aria-hidden="true">{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                              <span className="th-arrow" aria-hidden>
+                                {{ asc: "↑", desc: "↓" }[sorted as string] ?? "↕"}
+                              </span>
+                            </button>
+                          ) : (
+                            <div className="th-button">
+                              <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                            </div>
+                          )}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </thead>
+              <tbody>
+                {table.getRowModel().rows.map((row) => (
+                  <tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => {
+                      const colId = cell.column.id;
+                      const isRight = rightAlignedColumnIds.has(colId);
+                      const isPct = percentageColumnIds.has(colId);
+                      const pctVal = isPct ? (cell.getValue() as number | null) : null;
+                      const colorClass = isPct
+                        ? pctVal === null
+                          ? "muted"
+                          : pctVal < 0
+                            ? "danger"
+                            : pctVal > 0
+                              ? "success"
+                              : ""
+                        : "";
+                      return (
+                        <td key={cell.id} className={[isRight ? "num" : "", colorClass].filter(Boolean).join(" ")}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <div
@@ -670,13 +914,15 @@ export function SolarDashboard() {
       </div>
 
       <details className="glossary">
-        <summary>อธิบายคำสั้น ๆ</summary>
+        <summary>อธิบายคำและหน่วยที่ใช้ในหน้านี้</summary>
         <div className="glossary__body">
-          <p><strong>เดือนนี้</strong> = ผลผลิตรวมของเดือนที่เลือก</p>
-          <p><strong>ปีที่เลือก</strong> = ผลรวมทั้งปีของปีที่เลือกจาก dropdown</p>
-          <p><strong>เดือนก่อน</strong> = เทียบกับเดือนที่แล้ว</p>
-          <p><strong>ค่าเฉลี่ยไซต์</strong> = เทียบกับค่าเฉลี่ยที่ไซต์นี้เคยทำได้</p>
-          <p><strong>ปีที่แล้ว</strong> = เทียบกับเดือนเดียวกันของปีก่อน</p>
+          <p><strong>หน่วย</strong> = หน่วยไฟฟ้า 1 หน่วย เท่ากับ 1 kWh</p>
+          <p><strong>kWp</strong> = ขนาดกำลังผลิตติดตั้งภายใต้สภาวะทดสอบ ผลผลิตจริงขึ้นอยู่กับแสงแดดและสภาพระบบด้วย</p>
+          <p><strong>ไฟฟ้าที่ผลิตได้เดือนนี้</strong> = ผลผลิตรวมทุกไซต์ของเดือนที่เลือก</p>
+          <p><strong>เทียบเดือนเดียวกันปีก่อน</strong> = เทียบกับเดือนเดียวกันของปีที่แล้ว เพื่อให้เห็นแนวโน้มโดยไม่ติดฤดูกาล</p>
+          <p><strong>เทียบเดือนก่อน</strong> = เทียบกับรายงานเดือนก่อนหน้าของไซต์นั้น หากข้อมูลขาด อาจไม่ใช่เดือนติดกัน</p>
+          <p><strong>เทียบค่าเฉลี่ยไซต์</strong> = เทียบกับค่าเฉลี่ยเดือนอื่นที่มีค่าผลิตไฟมากกว่าศูนย์ของไซต์นี้</p>
+          <p><strong>ขอบเขตข้อมูล</strong> = "รายชื่อจากการซิงก์ล่าสุด" แสดงเฉพาะไซต์ในรายชื่อล่าสุด ส่วน "รวมประวัติไซต์เก่า" จะรวมไซต์ที่เคยมีข้อมูลในอดีตด้วย</p>
         </div>
       </details>
     </main>
@@ -696,6 +942,15 @@ function formatMonthLabel(value: string): string {
 
 function formatYearLabel(year: number): string {
   return `พ.ศ. ${year + 543}`;
+}
+
+function formatDateTimeLabel(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("th-TH-u-ca-buddhist", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function formatNumber(value: number | null): string {
@@ -727,77 +982,9 @@ function ComparisonBlock({ label, comparison, secondary = false }: { label: stri
     <div className={`comparison-row comparison-row--${comparison.state}${secondaryClass}`}>
       <span className="comparison-row__label">{label}</span>
       <span className="comparison-row__value">
-        {direction} {formatNumber(Math.abs(comparison.deltaAbsKwh))} kWh ({formatSignedPercent(comparison.deltaPct)})
+        {direction} {formatNumber(Math.abs(comparison.deltaAbsKwh))} หน่วย ({formatSignedPercent(comparison.deltaPct)})
       </span>
-      <span className="comparison-row__baseline">ฐาน {formatNumber(comparison.baselineKwh)} kWh</span>
-    </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  unit,
-  note,
-  control,
-  delta,
-}: {
-  label: string;
-  value: string;
-  unit: string;
-  note: string;
-  control?: React.ReactNode;
-  delta?: { abs: number; pct: number } | null;
-}) {
-  const deltaClass = delta === null || delta === undefined ? null : delta.abs > 0 ? "up" : delta.abs < 0 ? "down" : "flat";
-  const deltaDirection = delta === null || delta === undefined ? null : delta.abs > 0 ? "เพิ่มขึ้น" : delta.abs < 0 ? "ลดลง" : "เท่าเดิม";
-
-  return (
-    <Card className="summary-card" variant="outlined">
-      <div className="summary-card__head">
-        <p className="summary-card__label">{label}</p>
-        {control}
-      </div>
-      <Statistic
-        value={value === "-" ? "—" : value}
-        suffix={<Typography.Text type="secondary" style={{ fontSize: 14 }}>{unit}</Typography.Text>}
-        valueStyle={{ fontSize: 28, fontWeight: 700, color: "var(--primary)" }}
-      />
-      {delta !== null && delta !== undefined && deltaClass !== null && deltaDirection !== null && (
-        <p className={`summary-card__delta summary-card__delta--${deltaClass}`}>
-          {deltaDirection} {formatNumber(Math.abs(delta.abs))} kWh ({formatSignedPercent(delta.pct)})
-        </p>
-      )}
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>{note}</Typography.Text>
-    </Card>
-  );
-}
-
-function AlertBanner({
-  attention,
-  watch,
-  review,
-  monitoringRows,
-}: {
-  attention: number;
-  watch: number;
-  review: number;
-  monitoringRows?: SiteTableRow[];
-}) {
-  const total = attention + watch + review;
-  if (total === 0) return null;
-
-  const isUrgent = attention > 0;
-  const parts: string[] = [];
-  if (attention > 0) parts.push(`${attention} ตรวจด่วน`);
-  if (watch > 0) parts.push(`${watch} เฝ้าระวัง`);
-  if (review > 0) parts.push(`${review} พิจารณา`);
-  const topSite = monitoringRows?.[0]?.siteName;
-
-  return (
-    <div className={`alert-banner ${isUrgent ? "alert-banner--urgent" : "alert-banner--watch"}`} role="alert">
-      <strong>{total} ไซต์ต้องตรวจสอบ</strong>
-      <span>— {parts.join(", ")}{topSite ? ` · อันดับแรก: ${topSite}` : ""}</span>
+      <span className="comparison-row__baseline">ช่วงเทียบ {formatNumber(comparison.baselineKwh)} หน่วย</span>
     </div>
   );
 }
@@ -807,7 +994,6 @@ function ImportPanel({
   inferredMonth,
   reportMonth,
   rowCount,
-  siteNames,
   importing,
   importError,
   importSuccess,
@@ -862,16 +1048,18 @@ function ImportPanel({
           >
             {importing ? "กำลังนำเข้า..." : "นำเข้ารายงาน"}
           </Button>
-
         </div>
       </form>
 
       <div className="import-preview">
         <div>
+          <p className="import-preview__label">ไฟล์</p>
+          <p className="import-preview__value">{fileName || "ยังไม่ได้เลือกไฟล์"}</p>
+        </div>
+        <div>
           <p className="import-preview__label">เดือนที่จะบันทึก</p>
           <p className="import-preview__value">{monthLabel}</p>
         </div>
-
       </div>
 
       {importSuccess ? <Alert type="success" message={importSuccess} showIcon style={{ marginTop: 12 }} /> : null}
@@ -881,14 +1069,14 @@ function ImportPanel({
 }
 
 function PortfolioComparisonChart({
-  currentYear,
+  effectiveYear,
   points,
   scale,
   hasData,
   insight,
   selectedMonthNumber,
 }: {
-  currentYear: number | null;
+  effectiveYear: number | null;
   points: PortfolioComparisonChartPoint[];
   scale: PortfolioChartScale;
   hasData: boolean;
@@ -897,29 +1085,37 @@ function PortfolioComparisonChart({
 }) {
   const currentPath = buildChartPath(points, (point) => point.currentYearYieldKwh, scale);
   const previousPath = buildChartPath(points, (point) => point.previousYearSameMonthYieldKwh, scale);
-  const currentTitle = currentYear ? `ปีล่าสุด (${formatYearLabel(currentYear)})` : "ปีล่าสุด";
-  const insightText = insight && insight.totalMonthsCompared >= 2 ? formatPortfolioInsight(insight) : null;
-  const insightClass = !insight || !insightText ? "" :
-    insight.monthsAhead >= insight.monthsBehind ? "chart-insight-line--good" : "chart-insight-line--bad";
-
-
+  const currentTitle = effectiveYear ? `ปี ${formatYearLabel(effectiveYear)}` : "ปีที่เลือก";
+  const previousTitle = effectiveYear ? `ปี ${formatYearLabel(effectiveYear - 1)}` : "ปีก่อน";
+  const insightText = insight && insight.totalMonthsCompared >= 2 && effectiveYear
+    ? formatPortfolioInsight(insight, effectiveYear)
+    : null;
+  const insightClass = !insight || !insightText
+    ? ""
+    : insight.monthsAhead >= insight.monthsBehind
+      ? "chart-insight-line--good"
+      : "chart-insight-line--bad";
 
   return (
     <section className="section-block" aria-labelledby="portfolio-chart-heading">
       <div className="section-head">
         <div>
-          <h2 id="portfolio-chart-heading">ผลผลิตรวมทุกไซต์เทียบเดือนเดียวกันปีก่อน</h2>
+          <h2 id="portfolio-chart-heading">ผลผลิตรวมทุกไซต์ {currentTitle} เทียบเดือนเดียวกันปีก่อน</h2>
           {insightText && <p className={`chart-insight-line ${insightClass}`}>{insightText}</p>}
         </div>
-        <p className="section-note">เส้นสีม่วงคือ{currentTitle} · เส้นสีเทาอ่อนคือเดือนเดียวกันของปีก่อน</p>
+        <p className="section-note">
+          เส้นสีน้ำเงินคือ{currentTitle} · เส้นประสีเทาคือเดือนเดียวกันของ{previousTitle}
+        </p>
       </div>
 
-      <article className="surface-card portfolio-chart-card">
+      <article className="surface-card portfolio-chart__card">
         {hasData ? (
           <>
             <div className="portfolio-chart__legend" aria-hidden="true">
               <span className="portfolio-chart__legend-item portfolio-chart__legend-item--current">{currentTitle}</span>
-              <span className="portfolio-chart__legend-item portfolio-chart__legend-item--previous">เทียบเดือนเดียวกันปีก่อน</span>
+              <span className="portfolio-chart__legend-item portfolio-chart__legend-item--previous">
+                เทียบเดือนเดียวกันปีก่อน ({previousTitle})
+              </span>
             </div>
 
             <div className="portfolio-chart__plot">
@@ -929,9 +1125,9 @@ function PortfolioComparisonChart({
                 role="img"
                 aria-labelledby="portfolio-chart-title portfolio-chart-desc"
               >
-                <title id="portfolio-chart-title">กราฟผลผลิตรวมทุกไซต์รายเดือน</title>
+                <title id="portfolio-chart-title">กราฟผลผลิตรวมทุกไซต์รายเดือน {currentTitle}</title>
                 <desc id="portfolio-chart-desc">
-                  กราฟเส้นแสดงผลผลิตรวมทุกไซต์ของปีล่าสุดเทียบกับเดือนเดียวกันของปีก่อนแต่ละเดือน
+                  กราฟเส้นแสดงผลผลิตรวมทุกไซต์ของ{currentTitle}เทียบกับเดือนเดียวกันของ{previousTitle}แต่ละเดือน
                 </desc>
                 <line
                   x1={scale.padding.left}
@@ -947,7 +1143,6 @@ function PortfolioComparisonChart({
                   y2={scale.height - scale.padding.bottom}
                   className="portfolio-chart__axis"
                 />
-                {/* Y-axis reference labels */}
                 {([0, 0.5, 1] as const).map((ratio) => {
                   const value = ratio * scale.yMax;
                   const y = scale.yForValue(value);
@@ -998,7 +1193,6 @@ function PortfolioComparisonChart({
 
                   return dots;
                 })}
-                {/* Selected month highlight — rendered on top of regular dots */}
                 {selectedMonthNumber !== null && selectedMonthNumber !== undefined && (() => {
                   const point = points.find((p) => p.monthNumber === selectedMonthNumber);
                   if (!point) return null;
@@ -1032,23 +1226,23 @@ function PortfolioComparisonChart({
 
             <div className="table-wrap portfolio-chart__table-wrap">
               <table className="portfolio-chart__table">
-                <caption className="visually-hidden">ตารางสรุปผลผลิตรายเดือน</caption>
+                <caption className="visually-hidden">ตารางสรุปผลผลิตรายเดือน {currentTitle} เทียบ{previousTitle}</caption>
                 <thead>
                   <tr>
                     <th scope="col">เดือน</th>
                     <th scope="col">{currentTitle}</th>
-                    <th scope="col">เทียบเดือนเดียวกันปีก่อน</th>
+                    <th scope="col">เดือนเดียวกัน{previousTitle}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {points.map((point) => (
                     <tr key={point.monthNumber}>
                       <th scope="row">{point.monthLabel}</th>
-                      <td>{point.currentYearYieldKwh === null ? "ไม่มีข้อมูล" : `${formatNumber(point.currentYearYieldKwh)} kWh`}</td>
+                      <td>{point.currentYearYieldKwh === null ? "ไม่มีข้อมูล" : `${formatNumber(point.currentYearYieldKwh)} หน่วย`}</td>
                       <td>
                         {point.previousYearSameMonthYieldKwh === null
                           ? "ไม่มีข้อมูล"
-                          : `${formatNumber(point.previousYearSameMonthYieldKwh)} kWh`}
+                          : `${formatNumber(point.previousYearSameMonthYieldKwh)} หน่วย`}
                       </td>
                     </tr>
                   ))}
@@ -1059,7 +1253,7 @@ function PortfolioComparisonChart({
         ) : (
           <div className="empty-state empty-state--soft">
             <p className="empty-state__title">ยังไม่มีข้อมูลกราฟ</p>
-            <p className="empty-state__text">ยังไม่พบข้อมูลผลผลิตรายเดือนสำหรับเปรียบเทียบ</p>
+            <p className="empty-state__text">ยังไม่พบข้อมูลผลผลิตรายเดือนของ{currentTitle}สำหรับเปรียบเทียบ</p>
           </div>
         )}
       </article>
@@ -1097,16 +1291,17 @@ function formatAxisKwh(value: number): string {
   return Math.round(value).toString();
 }
 
-function formatPortfolioInsight(insight: PortfolioInsight): string {
+function formatPortfolioInsight(insight: PortfolioInsight, effectiveYear: number): string {
   const total = insight.totalMonthsCompared;
+  const yearText = formatYearLabel(effectiveYear);
   const avgStr =
     insight.averageDeltaPct !== null
       ? ` (เฉลี่ย ${insight.averageDeltaPct >= 0 ? "+" : ""}${(insight.averageDeltaPct * 100).toFixed(1)}%)`
       : "";
   if (insight.monthsAhead >= insight.monthsBehind) {
-    return `ปีนี้อยู่เหนือปีก่อน ${insight.monthsAhead} จาก ${total} เดือน${avgStr}`;
+    return `ปี ${yearText} ผลิตมากกว่าปีก่อน ${insight.monthsAhead} จาก ${total} เดือนที่เทียบได้${avgStr}`;
   }
-  return `ปีนี้อยู่ต่ำกว่าปีก่อน ${insight.monthsBehind} จาก ${total} เดือน${avgStr}`;
+  return `ปี ${yearText} ผลิตน้อยกว่าปีก่อน ${insight.monthsBehind} จาก ${total} เดือนที่เทียบได้${avgStr}`;
 }
 
 function LoadingScreen() {
@@ -1154,10 +1349,11 @@ function EmptyScreen({
       <Card className="empty-state">
         <Empty
           description={
-            <>
-              <Typography.Title level={4}>ยังไม่มีข้อมูล</Typography.Title>
-              <Typography.Text type="secondary">ลองเลือกเดือนอื่นหรือรอการนำเข้ารายงาน</Typography.Text>
-            </>
+            <span>
+              <strong className="empty-state__title">ยังไม่มีข้อมูล</strong>
+              <br />
+              ลองเลือกเดือนอื่น สลับขอบเขตข้อมูล หรือนำเข้ารายงานใหม่
+            </span>
           }
         />
         {monthOptions.length > 0 && (
@@ -1178,20 +1374,11 @@ function EmptyScreen({
 }
 
 function NoDataCell() {
-  return <Typography.Text type="secondary">ไม่มีข้อมูล</Typography.Text>;
+  return <span className="muted">ไม่มีข้อมูล</span>;
 }
 
-const STATUS_TAG_CONFIG: Record<string, { color: string; label: string }> = {
-  attention: { color: "red", label: statusLabel.attention },
-  watch: { color: "gold", label: statusLabel.watch },
-  review: { color: "orange", label: statusLabel.review },
-  ok: { color: "purple", label: statusLabel.ok },
-  "no-data": { color: "default", label: statusLabel["no-data"] },
-};
-
-function StatusTag({ status }: { status: string }) {
-  const config = STATUS_TAG_CONFIG[status] ?? { color: "default", label: status };
-  return <Tag color={config.color}>{config.label}</Tag>;
+function StatusChip({ status }: { status: Status }) {
+  return <span className={`status-chip status-chip--${status}`}>{statusLabel[status]}</span>;
 }
 
 export default SolarDashboard;
