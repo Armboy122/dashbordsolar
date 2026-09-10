@@ -7,11 +7,11 @@ export default function Help() {
   return (
     <div className="as-prototype as-help">
       <header className="as-topbar">
-        <Link className="as-brand" href="/prototype">
+        <Link className="as-brand" href="/">
           AnalysisSolar
         </Link>
         <nav className="as-topnav" aria-label="คู่มือ">
-          <Link href="/prototype">กลับหน้าใช้งาน</Link>
+          <Link href="/">กลับหน้าใช้งาน</Link>
           <a href="/manual/AnalysisSolar-V2-User-Guide.pdf" download>
             ดาวน์โหลด PDF
           </a>

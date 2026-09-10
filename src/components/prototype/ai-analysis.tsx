@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Info, Sparkles } from "lucide-react";
+import { Info, Sparkles, Brain } from "lucide-react";
 import { monthLabel, number } from "@/src/lib/prototype-model";
 import type { SolarAiResult } from "@/src/types/solar-ai";
 
@@ -29,12 +29,14 @@ export default function AiAnalysis({
       result: SolarAiResult | null;
     }[]
   >([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [historyRefresh, setHistoryRefresh] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     setResult(null);
     setJobs([]);
+    setHistoryLoaded(false);
     let timer: ReturnType<typeof setTimeout>;
     async function read() {
       try {
@@ -46,6 +48,7 @@ export default function AiAnalysis({
         if (!r.ok || !d.ok) throw new Error(d.error || "อ่านประวัติไม่สำเร็จ");
         if (controller.signal.aborted) return;
         setJobs(d.jobs);
+        setHistoryLoaded(true);
         setHistoryError("");
         const saved = d.jobs.find(
           (j: { result: SolarAiResult | null }) => j.result,
@@ -58,7 +61,8 @@ export default function AiAnalysis({
         )
           timer = setTimeout(read, 10000);
       } catch {
-        if (!controller.signal.aborted) setHistoryError("อ่านประวัติ AI ไม่สำเร็จ");
+        if (!controller.signal.aborted)
+          setHistoryError("อ่านประวัติ AI ไม่สำเร็จ");
       }
     }
     void read();
@@ -115,7 +119,9 @@ export default function AiAnalysis({
       }
     } catch (e) {
       if (!controller.signal.aborted)
-        setError(e instanceof Error ? e.message : "วิเคราะห์ไม่สำเร็จ กรุณาลองใหม่");
+        setError(
+          e instanceof Error ? e.message : "วิเคราะห์ไม่สำเร็จ กรุณาลองใหม่",
+        );
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
@@ -124,9 +130,8 @@ export default function AiAnalysis({
     <section className="as-panel as-ai" aria-labelledby="ai-title">
       <div className="as-section-title">
         <div>
-          <p className="as-eyebrow">AI ASSISTED REVIEW</p>
           <h2 id="ai-title">
-            <Sparkles size={21} /> ช่วยวิเคราะห์ด้วย Gemini
+            <Sparkles size={21} /> ข้อมูลเชิงลึกจาก AI
           </h2>
         </div>
         <span className="as-pill">ข้อเสนอ AI · ยังไม่ยืนยัน</span>
@@ -135,11 +140,16 @@ export default function AiAnalysis({
         ให้ AI ช่วยอ่านข้อมูลเดือน {monthLabel(month)} และประวัติย้อนหลัง
         พร้อมเสนอสาเหตุที่เป็นไปได้และสิ่งที่ควรตรวจต่อ
       </p>
-      <p className="as-muted">
-        หลังนำเข้าไฟล์สำเร็จ ระบบเข้าคิววิเคราะห์แต่ละไซต์อัตโนมัติ และเก็บผลไว้ดูย้อนหลัง
-        ส่งตัวเลขย้อนหลังสูงสุด 25 เดือนและบันทึกซ่อมจริงไม่เกิน 50 รายการถึงเดือนที่เลือกให้
-        Google Gemini ไม่ส่งชื่อไซต์จากทะเบียนหรือบัญชี Huawei โปรดไม่ใส่ข้อมูลลับในบันทึกซ่อม
-      </p>
+      <details>
+        <summary>AI ใช้ข้อมูลอะไรและทำงานเมื่อไร</summary>
+        <p className="as-muted">
+          หลังนำเข้าไฟล์สำเร็จ ระบบเข้าคิววิเคราะห์แต่ละไซต์อัตโนมัติ
+          และเก็บผลไว้ดูย้อนหลัง ส่งตัวเลขย้อนหลังสูงสุด 25
+          เดือนและบันทึกซ่อมจริงไม่เกิน 50 รายการถึงเดือนที่เลือกให้ Google
+          Gemini ไม่ส่งชื่อไซต์จากทะเบียนหรือบัญชี Huawei
+          โปรดไม่ใส่ข้อมูลลับในบันทึกซ่อม
+        </p>
+      </details>
       {historyError && (
         <p role="alert">
           {historyError}{" "}
@@ -164,7 +174,9 @@ export default function AiAnalysis({
               </span>
               {j.lastError && <p>{j.lastError}</p>}
               {j.result && (
-                <button onClick={() => setResult(j.result)}>ดูผลครั้งนี้</button>
+                <button onClick={() => setResult(j.result)}>
+                  ดูผลครั้งนี้
+                </button>
               )}
             </div>
           ))}
@@ -172,9 +184,24 @@ export default function AiAnalysis({
       )}
       {jobs.some((j) => ["queued", "running"].includes(j.status)) && (
         <p role="status">
-          มีงานรอคิวหรือกำลังวิเคราะห์ · ผลด้านล่างอาจเป็นครั้งก่อน ระบบจะอัปเดตเมื่อเสร็จ
+          มีงานรอคิวหรือกำลังวิเคราะห์ · ผลด้านล่างอาจเป็นครั้งก่อน
+          ระบบจะอัปเดตเมื่อเสร็จ
         </p>
       )}
+      {!historyLoaded && !historyError && (
+        <p role="status">กำลังอ่านผลวิเคราะห์ที่บันทึกไว้…</p>
+      )}
+      {historyLoaded &&
+        !historyError &&
+        !result &&
+        !loading &&
+        !jobs.some((j) => ["queued", "running"].includes(j.status)) && (
+          <div className="as-empty-history as-empty-ai">
+            <Brain size={34} />
+            <h3>ยังไม่มีผลวิเคราะห์เดือนนี้</h3>
+            <p>AI จะเข้าคิวหลังนำเข้าไฟล์สำเร็จ หรือกดวิเคราะห์ด้านล่าง</p>
+          </div>
+        )}
       {configError ? (
         <div role="alert">
           <p>{configError}</p>
@@ -220,11 +247,15 @@ export default function AiAnalysis({
       )}
       {result && (
         <div className="as-ai-result">
-          <AiProvenance result={result} />
+          <details>
+            <summary>ข้อมูลอ้างอิงและเวลาวิเคราะห์</summary>
+            <AiProvenance result={result} />
+          </details>
           <p className="as-notice">
             <Info size={18} /> เนื้อหาต่อไปนี้สร้างโดย AI อาจคลาดเคลื่อน
             ไม่ใช่สาเหตุที่ช่างยืนยัน ผลนี้อ้างอิงข้อมูล ณ เวลาที่วิเคราะห์
-            หากนำเข้าไฟล์หรือเพิ่มประวัติซ่อมภายหลัง ต้องวิเคราะห์ใหม่เพื่อรวมข้อมูลล่าสุด
+            หากนำเข้าไฟล์หรือเพิ่มประวัติซ่อมภายหลัง
+            ต้องวิเคราะห์ใหม่เพื่อรวมข้อมูลล่าสุด
           </p>
           <h3>AI สรุปจากข้อมูล</h3>
           <p>{result.analysis.summary}</p>
@@ -296,7 +327,8 @@ export default function AiAnalysis({
             <details>
               <summary>ข้อมูลจริงที่ส่งให้ AI และรุ่นคำสั่ง</summary>
               <p className="as-muted">
-                Prompt: {result.promptVersion} · ลายนิ้วมือข้อมูล: {result.inputHash}
+                Prompt: {result.promptVersion} · ลายนิ้วมือข้อมูล:{" "}
+                {result.inputHash}
               </p>
             </details>
             <details>
@@ -394,7 +426,8 @@ function AiProvenance({ result }: { result: SolarAiResult }) {
         </div>
       </dl>
       <p>
-        ผลนี้อธิบายหลักฐานเท่าที่มีอยู่ ณ เวลาที่สร้าง ยังไม่ได้ตรวจซ้ำกับข้อมูลที่นำเข้าภายหลัง
+        ผลนี้อธิบายหลักฐานเท่าที่มีอยู่ ณ เวลาที่สร้าง
+        ยังไม่ได้ตรวจซ้ำกับข้อมูลที่นำเข้าภายหลัง
         จึงไม่ยืนยันว่าเป็นผลจากข้อมูลล่าสุด
         หากต้องการผลที่อ้างข้อมูลปัจจุบันต้องสั่งวิเคราะห์ใหม่เป็นรายไซต์
       </p>

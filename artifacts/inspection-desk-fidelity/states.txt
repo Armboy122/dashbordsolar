@@ -1,0 +1,23 @@
+### Result
+{"empty":0,"error":true,"historyScope":true,"helpOverflow":false}
+### Ran Playwright code
+```js
+await (async page => {
+ const r={}; await page.setViewportSize({width:390,height:1000});
+ await page.goto('http://localhost:3100/?view=sites&month=2026-08&scope=source'); await page.locator('.as-coverage').waitFor();
+ await page.getByLabel('ค้นหาไซต์ในแถบข้าง').count(); await page.locator('.as-search input').fill('ไม่มีไซต์ชื่อนี้แน่นอน'); r.empty=await page.getByText('ไม่พบไซต์ที่ตรงกับตัวกรอง',{exact:false}).count();
+ await page.route('**/api/dashboard/latest?**',route=>route.fulfill({status:500,json:{ok:false}})); await page.reload(); await page.getByRole('heading',{name:'ยังโหลดข้อมูลไม่ได้'}).waitFor(); r.error=true;
+ await page.screenshot({path:'artifacts/inspection-desk-fidelity/error-390.png'}); await page.unroute('**/api/dashboard/latest?**');
+ await page.goto('http://localhost:3100/?view=overview&month=2026-08&scope=history'); await page.locator('.as-coverage').waitFor(); r.historyScope=page.url().includes('scope=history');
+ await page.goto('http://localhost:3100/help'); await page.getByRole('heading',{name:'วิธีใช้งาน AnalysisSolar V2',exact:true}).waitFor(); r.helpOverflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth); await page.screenshot({path:'artifacts/inspection-desk-fidelity/help-390.png',fullPage:true});
+ return r;
+}
+)(page);
+```
+### Page
+- Page URL: http://localhost:3100/help
+- Page Title: วิธีใช้งาน V2 | AnalysisSolar
+### Events
+- New console entries: .playwright-cli/console-2026-09-09T20-22-41-397Z.log#L65-L73
+
+Follow-up: empty-state assertion corrected to the actual heading "ไม่พบไซต์ที่ตรงกับการค้นหา"; waitFor passed and empty-390.png captured. The initial zero was a wrong test label, not absence of the empty UI.

@@ -16,6 +16,8 @@ import {
   Sun,
   TriangleAlert,
   Zap,
+  Upload,
+  CircleHelp,
 } from "lucide-react";
 import {
   type Dashboard,
@@ -56,6 +58,7 @@ export default function Prototype() {
     query = search.get("q") || "",
     filter = search.get("filter") || "all",
     site = search.get("site");
+  const [railOpen, setRailOpen] = useState(false);
   const [data, setData] = useState<Dashboard | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -164,25 +167,99 @@ export default function Prototype() {
               href={href({ view: m.id, site: null })}
               aria-current={view === m.id ? "page" : undefined}
             >
-              <m.icon size={17} aria-hidden />
               <span>{m.label}</span>
             </Link>
           ))}
         </nav>
-        <Link className="as-help-link" href="/help">วิธีใช้งาน</Link>
+        <Link className="as-help-link" href="/help">
+          วิธีใช้งาน
+        </Link>
       </header>
+      {data && !mismatch && (
+        <aside
+          className={`as-site-rail as-global-rail ${railOpen ? "is-open" : ""}`}
+          aria-label="เลือกไซต์ในขอบเขตเดือนนี้"
+        >
+          <button
+            className="as-rail-toggle"
+            aria-expanded={railOpen}
+            onClick={() => setRailOpen(!railOpen)}
+          >
+            <Building2 size={18} /> ไซต์ทั้งหมด ({plants.length}) · เลือกไซต์
+          </button>
+          <h2>ไซต์ทั้งหมด ({plants.length})</h2>
+          <label>
+            <Search size={17} />
+            <input
+              aria-label="ค้นหาไซต์ในแถบข้าง"
+              placeholder="ค้นหาชื่อไซต์"
+              value={query}
+              onChange={(e) => change({ q: e.target.value })}
+            />
+          </label>
+          <div className="as-rail-list">
+            {selectPlants(plants, query, "all").map((p) => (
+              <Link
+                key={p.siteName}
+                href={href({
+                  site: p.siteName,
+                  view: view === "reports" ? "sites" : view,
+                })}
+                onClick={() => setRailOpen(false)}
+                aria-current={p.siteName === site ? "true" : undefined}
+              >
+                <FileText size={19} />
+                <span>
+                  {p.siteName}
+                  <small>
+                    {p.capacityKwp === null
+                      ? "ไม่มีกำลังติดตั้ง"
+                      : `${number(p.capacityKwp)} kWp`}{" "}
+                    ·{" "}
+                    {p.inverterYieldKwh === null
+                      ? "ขาดค่าผลผลิต"
+                      : "มีค่าผลผลิต"}
+                  </small>
+                </span>
+              </Link>
+            ))}
+            {selectPlants(plants, query, "all").length === 0 && (
+              <p className="as-muted">ไม่พบชื่อไซต์ที่ค้นหา</p>
+            )}
+          </div>
+          <p className="as-rail-count">
+            {selectPlants(plants, query, "all").length} จาก {plants.length}{" "}
+            ไซต์ในขอบเขต
+          </p>
+        </aside>
+      )}
       <main id="as-main" className="as-main">
+        <div className="as-desk-toolbar">
+          <span>
+            {site ? (
+              <Link href={href({ site: null })}>
+                <ChevronLeft size={15} /> Inspection Desk · กลับรายการ
+              </Link>
+            ) : (
+              "Inspection Desk"
+            )}
+          </span>
+          <span className="as-pill">รายงานรายเดือน · ข้อมูลจริง</span>
+          <Link
+            className="as-button"
+            href={href({ view: "reports", site: null })}
+          >
+            <Upload size={17} /> อัปโหลดรายงาน
+          </Link>
+        </div>
         <div className="as-heading">
           <div>
-            <p className="as-eyebrow">MONTHLY SOLAR REVIEW</p>
             <h1>
-              {site
-                ? "รายละเอียดไซต์"
-                : menu.find((m) => m.id === view)?.label || "ภาพรวม"}
+              {site ? site : menu.find((m) => m.id === view)?.label || "ภาพรวม"}
             </h1>
             <p>
               {site
-                ? "อ่านหลักฐาน ก่อนส่งต่อให้ช่าง"
+                ? `กำลังติดตั้ง ${number(selected?.capacityKwp)}${selected?.capacityKwp == null ? "" : " kWp"} · หลักฐานจากรายงานรายเดือน`
                 : view === "overview"
                   ? "เดือนนี้ผลิตไฟได้เท่าไร และมีอะไรที่ควรดูต่อ"
                   : view === "sites"
@@ -217,7 +294,11 @@ export default function Prototype() {
           </div>
         </div>
         {loading ? (
-          <div className="as-loading" role="status" aria-label="กำลังโหลดข้อมูล">
+          <div
+            className="as-loading"
+            role="status"
+            aria-label="กำลังโหลดข้อมูล"
+          >
             <div />
             <div />
             <div />
@@ -289,42 +370,6 @@ export default function Prototype() {
                 </section>
               ) : site ? (
                 <div className="as-desk">
-                  <aside
-                    className="as-site-rail"
-                    aria-label="เลือกไซต์ในขอบเขตเดือนนี้"
-                  >
-                    <h2>ไซต์ทั้งหมด ({plants.length})</h2>
-                    <label>
-                      <Search size={17} />
-                      <input
-                        aria-label="ค้นหาไซต์ในแถบข้าง"
-                        placeholder="ค้นหาชื่อไซต์"
-                        value={query}
-                        onChange={(e) => change({ q: e.target.value })}
-                      />
-                    </label>
-                    <div>
-                      {selectPlants(plants, query, "all").map((p) => (
-                        <Link
-                          key={p.siteName}
-                          href={href({ site: p.siteName })}
-                          aria-current={
-                            p.siteName === site ? "true" : undefined
-                          }
-                        >
-                          <Building2 size={18} />
-                          <span>
-                            {p.siteName}
-                            <small>
-                              {p.inverterYieldKwh === null
-                                ? "ไม่มีค่าผลผลิต"
-                                : `${number(p.inverterYieldKwh)} kWh`}
-                            </small>
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  </aside>
                   <div className="as-desk-content">
                     <SiteDetail
                       key={`${site}-${month}`}
@@ -351,7 +396,8 @@ export default function Prototype() {
                           </strong>
                           <p>Inverter yield · 1 หน่วย = 1 kWh</p>
                           <small>
-                            รวมค่าที่มีจาก {validCount} / {data.meta.siteCount} ไซต์
+                            รวมค่าที่มีจาก {validCount} / {data.meta.siteCount}{" "}
+                            ไซต์
                           </small>
                           <YoyLine point={currentPoint} />
                         </div>
@@ -449,7 +495,10 @@ export default function Prototype() {
                         <div className="as-section-title">
                           <div>
                             <h2>รายการสำคัญที่ควรเปิดดู</h2>
-                            <p>สัญญาณตามการประเมินเดิม แยกจากข้อมูลที่ยังประเมินไม่ได้</p>
+                            <p>
+                              สัญญาณตามการประเมินเดิม
+                              แยกจากข้อมูลที่ยังประเมินไม่ได้
+                            </p>
                           </div>
                           <Link href={href({ view: "checks", site: null })}>
                             ดูทั้งหมด <ArrowRight size={17} />
@@ -475,13 +524,16 @@ export default function Prototype() {
                         </div>
                         {signals.length === 0 && missing === 0 && (
                           <p className="as-notice">
-                            ไม่มีรายการตามตัวกรองสัญญาณเดิม ไม่ใช่การรับรองว่าอุปกรณ์สมบูรณ์
+                            ไม่มีรายการตามตัวกรองสัญญาณเดิม
+                            ไม่ใช่การรับรองว่าอุปกรณ์สมบูรณ์
                           </p>
                         )}
                       </section>
                     </>
                   )}
-                  {view === "checks" && <InspectionTracker month={month} scope={scope} />}
+                  {view === "checks" && (
+                    <InspectionTracker month={month} scope={scope} />
+                  )}
                   {(view === "sites" || view === "checks") && (
                     <>
                       <div className="as-toolbar">
@@ -507,7 +559,9 @@ export default function Prototype() {
                             <option value="signal">
                               สัญญาณผลผลิต (ประเมินเดิม)
                             </option>
-                            <option value="missing">ขาดค่าผลผลิต / รอยืนยัน</option>
+                            <option value="missing">
+                              ขาดค่าผลผลิต / รอยืนยัน
+                            </option>
                           </select>
                         </label>
                         <label>
@@ -523,7 +577,8 @@ export default function Prototype() {
                       </div>
                       <div className="as-list-note">
                         <strong>
-                          พบ {rows.length} จาก {data.meta.siteCount} ไซต์ในขอบเขต
+                          พบ {rows.length} จาก {data.meta.siteCount}{" "}
+                          ไซต์ในขอบเขต
                         </strong>
                         <span>
                           สถานะเปิดใช้งาน: ยังไม่มีหลักฐานจาก API · สถานะงาน:
@@ -532,7 +587,8 @@ export default function Prototype() {
                       </div>
                       <p className="as-notice">
                         <Info size={18} /> ความสำคัญใหม่ยังรอทดสอบเกณฑ์
-                        ป้ายด้านล่างใช้ชื่อระดับเดิม ไม่ใช่สถานะงานหรือการยืนยันอุปกรณ์เสีย
+                        ป้ายด้านล่างใช้ชื่อระดับเดิม
+                        ไม่ใช่สถานะงานหรือการยืนยันอุปกรณ์เสีย
                       </p>
                       <div className="as-cards as-list-cards">
                         {rows
@@ -627,7 +683,10 @@ export default function Prototype() {
                             </div>
                             <div>
                               <dt>งานใหม่ / งานค้าง / ได้ผลตรวจ</dt>
-                              <dd>ดูงานทุกเดือนในหน้ารายการตรวจสอบ (ยังไม่สรุปจำนวนตามเดือน)</dd>
+                              <dd>
+                                ดูงานทุกเดือนในหน้ารายการตรวจสอบ
+                                (ยังไม่สรุปจำนวนตามเดือน)
+                              </dd>
                             </div>
                             <div>
                               <dt>สาเหตุที่ช่างยืนยัน</dt>
@@ -663,14 +722,17 @@ export default function Prototype() {
                             </div>
                           </dl>
                           <p className="as-notice">
-                            <Info size={18} /> เวลานำเข้าทะเบียนด้านบน ไม่ใช่สถานะ
-                            sync ล่าสุดของทั้งระบบ และไม่ใช่สถานะอุปกรณ์สด
+                            <Info size={18} /> เวลานำเข้าทะเบียนด้านบน
+                            ไม่ใช่สถานะ sync ล่าสุดของทั้งระบบ
+                            และไม่ใช่สถานะอุปกรณ์สด
                           </p>
                           <details>
-                            <summary>สิ่งที่ต้องมี ก่อนเปิดแก้ข้อมูลรายเดือน</summary>
+                            <summary>
+                              สิ่งที่ต้องมี ก่อนเปิดแก้ข้อมูลรายเดือน
+                            </summary>
                             <p>
-                              แสดงค่าต้นทางและค่าที่ใช้ หน่วย เหตุผล ผู้แก้ เวลา รุ่นข้อมูล
-                              และผลกระทบ
+                              แสดงค่าต้นทางและค่าที่ใช้ หน่วย เหตุผล ผู้แก้ เวลา
+                              รุ่นข้อมูล และผลกระทบ
                               พร้อมป้องกันการเขียนทับและกลับไปใช้ค่าต้นทางอย่างมีประวัติ
                             </p>
                           </details>
@@ -681,8 +743,9 @@ export default function Prototype() {
                         <div>
                           <h2>ความสามารถด้านข้อมูล</h2>
                           <p>
-                            นำเข้าไฟล์และบันทึกซ่อมได้จริงแล้ว ส่วนการแก้ค่ารายเดือน ตั้งเวลา
-                            sync และส่งออกรายงานยังไม่เปิดใช้งานในหน้านี้
+                            นำเข้าไฟล์และบันทึกซ่อมได้จริงแล้ว
+                            ส่วนการแก้ค่ารายเดือน ตั้งเวลา sync
+                            และส่งออกรายงานยังไม่เปิดใช้งานในหน้านี้
                           </p>
                         </div>
                       </section>
@@ -695,7 +758,7 @@ export default function Prototype() {
           )
         )}
         <footer className="as-footer">
-          <span>AnalysisSolar · ต้นแบบสำหรับทบทวน UX/UI</span>
+          <span>AnalysisSolar · เครื่องมือทบทวนข้อมูลโซลาร์รายเดือน</span>
           <span>รายงานรายเดือนเป็นหลักฐานประกอบ ต้องตรวจยืนยันสาเหตุ</span>
         </footer>
       </main>
@@ -785,7 +848,9 @@ function SiteDetail({
   }, [site, retry]);
   const row = rows.find((r) => r.reportMonth === month);
   const prior = rows.find((r) => r.reportMonth === shiftMonth(month, -1));
-  const value = plant?.inverterYieldKwh ?? row?.inverterYieldKwh ?? null;
+  const value = plant
+    ? plant.inverterYieldKwh
+    : (row?.inverterYieldKwh ?? null);
   const message = `ขอให้ช่วยตรวจไซต์ ${site}\nเดือน ${monthLabel(month)}\nข้อเท็จจริง: ${value === null ? "ไม่มีค่าผลผลิตที่ใช้ได้" : `Inverter yield ${number(value)} kWh`} จาก Plant Report รายเดือน\nยังไม่ยืนยันสาเหตุหรือสุขภาพอุปกรณ์\nกรุณาตรวจความครบถ้วนของรายงาน ประวัติหยุดทำงาน และข้อมูลแจ้งเตือนในช่วงเดือนนี้ แล้วแจ้งว่าพบอะไร ทำอะไรไป และต้องตรวจต่อไหม`;
   const points = rollingSeries(
     month,
@@ -801,17 +866,6 @@ function SiteDetail({
     );
   return (
     <>
-      <Link className="as-back" href={back}>
-        <ChevronLeft size={18} /> กลับรายการเดิม · {monthLabel(month)}
-      </Link>
-      <section className="as-panel as-detail-heading">
-        <Building2 size={32} />
-        <div>
-          <h2>{site}</h2>
-          <p>{monthLabel(month)} · สถานะเปิดใช้งาน: ยังไม่มีหลักฐาน</p>
-          <Badge plant={plant} />
-        </div>
-      </section>
       {loading ? (
         <p role="status" className="as-panel">
           กำลังโหลดประวัติไซต์…
@@ -828,7 +882,45 @@ function SiteDetail({
           <ComparisonChart
             points={points}
             month={month}
-            title="ผลผลิตของไซต์นี้ 12 เดือน"
+            title="ผลผลิตย้อนหลัง 12 เดือน"
+            summary={
+              <div className="as-chart-stats">
+                <div>
+                  <strong>
+                    {number(value)} <small>หน่วย</small>
+                  </strong>
+                  <span>ผลผลิต {monthLabel(month, true)}</span>
+                </div>
+                <div>
+                  <strong>
+                    {percentLabel(deltaPercent(value, prior?.inverterYieldKwh))}
+                  </strong>
+                  <span>เทียบเดือนก่อน · ยังไม่ปรับจำนวนวัน</span>
+                </div>
+                <div>
+                  <strong>
+                    {number(prior?.inverterYieldKwh)} <small>หน่วย</small>
+                  </strong>
+                  <span>
+                    เดือนก่อน {monthLabel(shiftMonth(month, -1), true)}
+                  </span>
+                </div>
+                <div>
+                  <strong>
+                    {points.some((p) => p.value !== null)
+                      ? number(
+                          points.reduce((sum, p) => sum + (p.value ?? 0), 0),
+                        )
+                      : "ไม่มีข้อมูล"}{" "}
+                    <small>หน่วย</small>
+                  </strong>
+                  <span>
+                    รวมจาก {points.filter((p) => p.value !== null).length} / 12
+                    เดือนที่มีค่า
+                  </span>
+                </div>
+              </div>
+            }
             scopeNote="ค่าเหล่านี้เป็นของไซต์นี้ไซต์เดียว จาก Inverter yield ใน Plant Report รายเดือน ไม่ใช่สถานะอุปกรณ์สด"
           />
           {!row && (
@@ -840,75 +932,89 @@ function SiteDetail({
         </>
       )}
       <div className="as-inspection-columns">
-        <div className="as-evidence-grid">
-          <section className="as-panel">
-            <p className="as-eyebrow">01 / FACTS</p>
-            <h2>ข้อมูลที่พบ</h2>
-            <div className="as-detail-value">
-              {number(value)}
-              <small>{value === null ? "" : "หน่วย"}</small>
+        <section className="as-panel as-findings">
+          <h2>ผลการตรวจสอบ</h2>
+          <p className="as-muted">จากรายงาน {monthLabel(month)}</p>
+          <div className="as-finding">
+            <FileText size={21} />
+            <div>
+              <h3>ข้อเท็จจริง (Facts)</h3>
+              <ul>
+                <li>
+                  {value === null
+                    ? "ไม่มีค่าผลผลิตที่ใช้ได้"
+                    : `ผลผลิต ${number(value)} หน่วย`}
+                </li>
+                <li>
+                  เดือนก่อน:{" "}
+                  {loading
+                    ? "กำลังอ่านประวัติ"
+                    : number(prior?.inverterYieldKwh)}
+                  {prior?.inverterYieldKwh == null ? "" : " หน่วย"}
+                </li>
+                <li>
+                  {value === 0
+                    ? "ต้นทางรายงานศูนย์ ยังไม่ยืนยันว่าอุปกรณ์เสีย"
+                    : "รายงานรายเดือนไม่ยืนยันสุขภาพอุปกรณ์"}
+                </li>
+              </ul>
+              <Badge plant={plant} />
             </div>
-            <p>
-              ไฟที่ผลิตได้ · Inverter yield จาก Plant Report เดือน{" "}
-              {monthLabel(month)}
-            </p>
-            <p className="as-notice">
-              <Info size={18} />
-              {value === null
-                ? "ไม่มีค่าที่ใช้ได้ ต้องตรวจรายงานก่อนประเมิน"
-                : value === 0
-                  ? "ต้นทางรายงานศูนย์ ยังไม่ยืนยันว่าอุปกรณ์เสีย"
-                  : "มีค่าผลผลิต ไม่ได้ยืนยันว่าข้อมูลทุกช่องครบหรืออุปกรณ์สมบูรณ์"}
-            </p>
-            <p>
-              เดือนก่อนตามปฏิทิน ({monthLabel(shiftMonth(month, -1), true)}):{" "}
-              {loading ? "กำลังอ่านประวัติ" : number(prior?.inverterYieldKwh)}
-              {prior?.inverterYieldKwh == null ? "" : " หน่วย"}
-            </p>
-            <p className="as-muted">
-              ค่ารายเดือนยังไม่ปรับจำนวนวันหรืออากาศ ใช้เพื่อดูหลักฐาน ไม่ยืนยันสาเหตุ
-            </p>
-            <details>
-              <summary>เหตุผลและคำแนะนำจากการประเมินเดิม</summary>
-              <p>
-                ข้อความต่อไปนี้มาจากระบบเดิม ไม่ใช่ข้อเท็จจริงที่ช่างยืนยัน
-                และยังไม่ได้เทียบกับกติกาใหม่
-              </p>
+          </div>
+          <div className="as-finding">
+            <CircleHelp size={21} />
+            <div>
+              <h3>สาเหตุที่เป็นไปได้</h3>
+              <p className="as-muted">ยังไม่ยืนยัน · แนวทางทั่วไป</p>
               <ul>
-                {plant.reasons.map((r, i) => (
-                  <li key={i}>{r}</li>
-                ))}
+                <li>ข้อมูลอาจไม่ครบ หรือมีช่วงหยุดเดินระบบ</li>
+                <li>
+                  อากาศ เงาบัง หรือการทำงานของอุปกรณ์อาจเกี่ยวข้อง
+                  ต้องตรวจหลักฐานเพิ่ม
+                </li>
               </ul>
-              <ul>
-                {plant.actions.map((r, i) => (
-                  <li key={i}>{r}</li>
-                ))}
-              </ul>
-            </details>
-          </section>
-          <section className="as-panel">
-            <p className="as-eyebrow">02 / POSSIBILITIES</p>
-            <h2>สาเหตุที่เป็นไปได้</h2>
-            <span className="as-pill">ยังไม่ยืนยัน · แนวทางทั่วไป</span>
-            <p>รายงานอาจไม่ครบ หรือมีช่วงหยุดเดินระบบ ต้องดูข้อมูลประกอบก่อนสรุป</p>
-            <p>
-              สภาพอากาศ เงาบัง หรือการทำงานของอุปกรณ์อาจเกี่ยวข้อง
-              แต่รายงานรายเดือนเพียงอย่างเดียวยืนยันสาเหตุไม่ได้
-            </p>
-            <div className="as-divider" />
-            <p className="as-eyebrow">03 / NEXT STEPS</p>
-            <h2>ตรวจอะไรต่อ</h2>
-            <ol>
-              <li>ตรวจไฟล์ต้นทาง เดือน และค่าที่ขาด</li>
-              <li>สอบถามช่วงหยุดตามแผนหรือเปลี่ยนกำลังติดตั้ง</li>
-              <li>ให้ช่างตรวจประวัติแจ้งเตือนและอุปกรณ์ตามขั้นตอนที่เหมาะสม</li>
-            </ol>
-          </section>
-        </div>
+            </div>
+          </div>
+          <div className="as-finding">
+            <ClipboardCheck size={21} />
+            <div>
+              <h3>ขั้นตอนถัดไป</h3>
+              <ol>
+                <li>ตรวจไฟล์ต้นทาง เดือน และค่าที่ขาด</li>
+                <li>สอบถามช่วงหยุดตามแผนหรือเปลี่ยนกำลังติดตั้ง</li>
+                <li>ให้ช่างตรวจประวัติแจ้งเตือนและอุปกรณ์</li>
+              </ol>
+            </div>
+          </div>
+          <details>
+            <summary>เหตุผลจากการประเมินเดิม</summary>
+            <p>ไม่ใช่ผลตรวจที่ช่างยืนยัน และยังไม่เทียบกับกติกาใหม่</p>
+            <ul>
+              {plant.reasons.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+            <ul>
+              {plant.actions.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          </details>
+        </section>
         <MaintenanceHistory key={`${site}-${inspectionRefresh}`} site={site} />
-        <AiAnalysis key={`${site}-${month}-${inspectionRefresh}`} site={site} month={month} />
+        <AiAnalysis
+          key={`${site}-${month}-${inspectionRefresh}`}
+          site={site}
+          month={month}
+        />
       </div>
-      <InspectionTracker key={`${site}-${month}`} site={site} month={month} scope={new URLSearchParams(back.split("?")[1]).get("scope") || "source"} onSaved={() => setInspectionRefresh(v => v + 1)} />
+      <InspectionTracker
+        key={`${site}-${month}`}
+        site={site}
+        month={month}
+        scope={new URLSearchParams(back.split("?")[1]).get("scope") || "source"}
+        onSaved={() => setInspectionRefresh((v) => v + 1)}
+      />
       <section className="as-panel as-line-panel">
         <div>
           <p className="as-eyebrow">ส่งต่อให้ช่าง</p>
@@ -926,9 +1032,13 @@ function SiteDetail({
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(message);
-              setCopied("คัดลอกแล้ว — ยังไม่ได้ส่ง LINE และไม่ได้เปลี่ยนสถานะงาน");
+              setCopied(
+                "คัดลอกแล้ว — ยังไม่ได้ส่ง LINE และไม่ได้เปลี่ยนสถานะงาน",
+              );
             } catch {
-              setCopied("คัดลอกอัตโนมัติไม่ได้ กรุณาเลือกข้อความด้านบนแล้วคัดลอกด้วยตัวเอง");
+              setCopied(
+                "คัดลอกอัตโนมัติไม่ได้ กรุณาเลือกข้อความด้านบนแล้วคัดลอกด้วยตัวเอง",
+              );
             }
           }}
         >
@@ -940,7 +1050,9 @@ function SiteDetail({
       {row && (
         <section className="as-panel">
           <details>
-            <summary>ค่าพลังงานอื่นและรายละเอียดเทคนิค · {monthLabel(month)}</summary>
+            <summary>
+              ค่าพลังงานอื่นและรายละเอียดเทคนิค · {monthLabel(month)}
+            </summary>
             <dl className="as-facts">
               <div>
                 <dt>ไฟที่ใช้เอง (kWh)</dt>
@@ -965,7 +1077,8 @@ function SiteDetail({
             </dl>
             <p>
               สัดส่วนใช้เองจากต้นทางผ่าน API ที่แปลงเป็น fraction แล้ว
-              แสดงเป็นเปอร์เซ็นต์ครั้งเดียว ค่าพลังงานที่ไม่สอดคล้องต้องตรวจต้นทาง
+              แสดงเป็นเปอร์เซ็นต์ครั้งเดียว
+              ค่าพลังงานที่ไม่สอดคล้องต้องตรวจต้นทาง
               ยังไม่ถือว่ายืนยันความถูกต้อง
             </p>
           </details>
@@ -984,7 +1097,9 @@ function SiteDetail({
  */
 function YoyLine({ point }: { point?: ComparisonChartPoint }) {
   if (!point) {
-    return <small className="as-kpi-yoy">ยังไม่มีข้อมูลเทียบปีก่อนของเดือนนี้</small>;
+    return (
+      <small className="as-kpi-yoy">ยังไม่มีข้อมูลเทียบปีก่อนของเดือนนี้</small>
+    );
   }
   const hasCohort = point.cohortSiteCount !== undefined;
   const current = hasCohort ? point.cohortCurrentKwh : point.value;
@@ -1014,7 +1129,9 @@ function YoyLine({ point }: { point?: ComparisonChartPoint }) {
       {hasCohort
         ? `ฐาน: กลุ่มไซต์เดิม ${point.cohortSiteCount} ไซต์ที่มีค่าทั้งสองเดือน (${number(current)} เทียบ ${number(baseline)} หน่วย)`
         : `ฐาน: ยอดรวมของเดือน ${monthLabel(shiftMonth(point.month, -12), true)} ซึ่งอาจครอบคลุมจำนวนไซต์ต่างกัน`}
-      {pct === null && baseline <= 0 ? " · ฐานเป็นศูนย์ จึงไม่คำนวณเปอร์เซ็นต์" : ""}
+      {pct === null && baseline <= 0
+        ? " · ฐานเป็นศูนย์ จึงไม่คำนวณเปอร์เซ็นต์"
+        : ""}
     </small>
   );
 }
@@ -1055,7 +1172,10 @@ function NotEnabledList({
         <Info size={20} aria-hidden />
         <div>
           <h2>ยังไม่เปิดใช้งานในรอบนี้</h2>
-          <p>แสดงเป็นรายการเพราะยังไม่มีระบบรองรับ จึงไม่ใส่ปุ่มที่กดแล้วไม่เกิดผล</p>
+          <p>
+            แสดงเป็นรายการเพราะยังไม่มีระบบรองรับ
+            จึงไม่ใส่ปุ่มที่กดแล้วไม่เกิดผล
+          </p>
         </div>
       </div>
       <ul>

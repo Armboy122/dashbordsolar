@@ -52,7 +52,7 @@ export function cohortToChartPoints(
   }));
 }
 
-const PLOT = { top: 18, bottom: 44, left: 52, right: 16, height: 250 };
+const PLOT = { top: 18, bottom: 12, left: 52, right: 16, height: 180 };
 
 function scaleY(value: number, max: number) {
   const usable = PLOT.height - PLOT.top - PLOT.bottom;
@@ -66,6 +66,7 @@ export default function ComparisonChart({
   title,
   scopeNote,
   cohortMode = false,
+  summary,
 }: {
   points: ComparisonChartPoint[];
   month: string;
@@ -75,6 +76,7 @@ export default function ComparisonChart({
   scopeNote: string;
   /** Portfolio charts carry matched-cohort figures; single-site charts do not. */
   cohortMode?: boolean;
+  summary?: React.ReactNode;
 }) {
   const [mode, setMode] = useState<"line" | "bar">("line");
   const [compare, setCompare] = useState(false);
@@ -105,7 +107,9 @@ export default function ComparisonChart({
     ? (width - PLOT.left - PLOT.right) / points.length
     : 0;
   const centerX = (index: number) => PLOT.left + slot * (index + 0.5);
-  const activeMonth = points.some((point) => point.month === active) ? active! : month;
+  const activeMonth = points.some((point) => point.month === active)
+    ? active!
+    : month;
   const current = points.find((point) => point.month === activeMonth);
 
   const linePath = (field: "value" | "previous") => {
@@ -129,7 +133,6 @@ export default function ComparisonChart({
     <section className="as-panel as-chart">
       <div className="as-section-title">
         <div>
-          <p className="as-eyebrow">PRODUCTION TREND</p>
           <h2>{title}</h2>
         </div>
         <div className="as-chart-modes">
@@ -167,7 +170,7 @@ export default function ComparisonChart({
           : "ไม่มีช่วงเดือน"}{" "}
         · หน่วย (kWh) · 1 หน่วย = 1 kWh
       </p>
-      <p className="as-chart-scope">{scopeNote}</p>
+
       <div ref={wrapRef} className="as-chart-canvas">
         <ChartSvg
           points={points}
@@ -181,16 +184,11 @@ export default function ComparisonChart({
           activeMonth={activeMonth}
         />
       </div>
-      <div className="as-chart-legend">
-        <span>
-          <i /> เดือนที่เลือก (เส้นทึบ/แท่งทึบ)
-        </span>
-        {showPrevious && (
-          <span>
-            <i className="as-line-previous" /> เดือนเดียวกันปีก่อน (เส้นประ/แท่งลาย)
-          </span>
-        )}
-      </div>
+      {showPrevious && (
+        <p className="as-chart-scope">
+          เขียวทึบ: ช่วงที่เลือก · อำพันเส้นประ/แท่งลาย: เดือนเดียวกันปีก่อน
+        </p>
+      )}
       <div className="as-month-buttons" aria-label="เลือกเดือนเพื่ออ่านค่ากราฟ">
         {points.map((point) => (
           <button
@@ -203,23 +201,44 @@ export default function ComparisonChart({
               onMonth?.(point.month);
             }}
           >
-            {monthLabel(point.month, true).split(" ")[0]}
+            {monthLabel(point.month, true)}
           </button>
         ))}
       </div>
-      <p className="as-chart-tooltip" aria-live="polite">
-        {current ? readingSentence(current, cohortMode) : "เลือกเดือนเพื่ออ่านค่า"}
-      </p>
-      <p className="as-muted">
-        ช่องว่างคือเดือนที่ไม่มีค่าที่ใช้ได้ ไม่ใช่ศูนย์ · เส้นขาดเมื่อไม่มีข้อมูล
-        {cohortMode
-          ? " · เปอร์เซ็นต์เปลี่ยนคิดจากกลุ่มไซต์ที่มีค่าทั้งสองช่วงเท่านั้น ไม่ใช่ยอดรวมทั้งพอร์ต"
-          : ""}
-      </p>
-      <details>
-        <summary>ดูค่ากราฟแบบตารางข้อความ</summary>
-        <ChartTable points={points} cohortMode={cohortMode} />
-      </details>
+      {summary}
+      <div className="as-chart-disclosures">
+        <details className="as-chart-explanation">
+          <summary>อ่านค่าที่เลือกและขอบเขตข้อมูล</summary>{" "}
+          <p className="as-chart-tooltip" aria-live="polite">
+            {current
+              ? readingSentence(current, cohortMode)
+              : "เลือกเดือนเพื่ออ่านค่า"}
+          </p>
+          <div className="as-chart-legend">
+            <span>
+              <i /> เดือนที่เลือก (เส้นทึบ/แท่งทึบ)
+            </span>
+            {showPrevious && (
+              <span>
+                <i className="as-line-previous" /> เดือนเดียวกันปีก่อน
+                (เส้นประ/แท่งลาย)
+              </span>
+            )}
+          </div>
+          <p className="as-chart-scope">{scopeNote}</p>
+          <p className="as-muted">
+            ช่องว่างคือเดือนที่ไม่มีค่าที่ใช้ได้ ไม่ใช่ศูนย์ ·
+            เส้นขาดเมื่อไม่มีข้อมูล
+            {cohortMode
+              ? " · เปอร์เซ็นต์เปลี่ยนคิดจากกลุ่มไซต์ที่มีค่าทั้งสองช่วงเท่านั้น ไม่ใช่ยอดรวมทั้งพอร์ต"
+              : ""}
+          </p>
+        </details>
+        <details>
+          <summary>ดูค่ากราฟแบบตารางข้อความ</summary>
+          <ChartTable points={points} cohortMode={cohortMode} />
+        </details>
+      </div>
     </section>
   );
 }
@@ -229,7 +248,9 @@ function readingSentence(point: ComparisonChartPoint, cohortMode: boolean) {
     point.value === null ? "" : " หน่วย"
   }`;
   const coverage =
-    point.siteCount === undefined ? "" : ` (รวมจาก ${point.siteCount} ไซต์ที่มีค่า)`;
+    point.siteCount === undefined
+      ? ""
+      : ` (รวมจาก ${point.siteCount} ไซต์ที่มีค่า)`;
   const prior = ` · เดือนเดียวกันปีก่อน ${number(point.previous)}${
     point.previous === null ? "" : " หน่วย"
   }${
@@ -361,6 +382,23 @@ function ChartSvg({
               strokeDasharray="7 5"
             />
           )}
+          {linePath("value")
+            .split("M")
+            .filter(Boolean)
+            .map((segment, index) => {
+              const coords = segment.trim().split(/\s+L?/).filter(Boolean);
+              const firstX = coords[0].split(",")[0];
+              const lastX = coords[coords.length - 1]
+                .replace(/^L/, "")
+                .split(",")[0];
+              return (
+                <path
+                  key={index}
+                  d={`M${segment} L${lastX},${baseline} L${firstX},${baseline} Z`}
+                  fill="#e8f3ee"
+                />
+              );
+            })}
           <path
             d={linePath("value")}
             fill="none"
@@ -382,19 +420,6 @@ function ChartSvg({
           )}
         </>
       )}
-      {points.map((point, index) => (
-        <text
-          key={`label-${point.month}`}
-          x={centerX(index)}
-          y={PLOT.height - 14}
-          textAnchor="middle"
-          fontSize="12"
-          fill={point.month === activeMonth ? "#10624d" : "#526173"}
-          fontWeight={point.month === activeMonth ? 700 : 400}
-        >
-          {point.month.slice(5)}
-        </text>
-      ))}
     </svg>
   );
 }

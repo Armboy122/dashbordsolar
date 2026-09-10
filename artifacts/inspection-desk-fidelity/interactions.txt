@@ -1,0 +1,31 @@
+### Result
+{"mobileOverflow":false,"bars":1,"table":true,"scopePreserved":true,"railClosed":"false","clipboard":true,"copyPosts":0,"allPosts":0}
+### Ran Playwright code
+```js
+await (async page => {
+ const results={}; let writes=0; const listener=r=>{if(r.method()==='POST')writes++}; page.on('request',listener);
+ const base='http://localhost:3100/?view=checks&month=2026-08&scope=source&site='+encodeURIComponent('RAG สนง.กฟส.ระแงะ');
+ await page.setViewportSize({width:390,height:1000}); await page.goto(base); await page.locator('.as-ai-result').waitFor();
+ await page.screenshot({path:'artifacts/inspection-desk-fidelity/detail-390.png',fullPage:true});
+ results.mobileOverflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
+ await page.getByRole('button',{name:'แท่งคู่เทียบปีก่อน',exact:true}).click();
+ results.bars=await page.locator('svg[aria-label^="กราฟแท่งคู่"]').count();
+ await page.getByText('ดูค่ากราฟแบบตารางข้อความ',{exact:true}).click(); results.table=await page.locator('.as-chart-table').isVisible();
+ await page.getByRole('button',{name:/ไซต์ทั้งหมด.*เลือกไซต์/}).click(); await page.getByLabel('ค้นหาไซต์ในแถบข้าง').fill('สำนักงาน');
+ await page.locator('.as-global-rail a').first().click(); results.scopePreserved=page.url().includes('month=2026-08') && page.url().includes('scope=source'); results.railClosed=await page.getByRole('button',{name:/ไซต์ทั้งหมด.*เลือกไซต์/}).getAttribute('aria-expanded');
+ await page.context().grantPermissions(['clipboard-read','clipboard-write']); await page.bringToFront(); await page.getByRole('button',{name:'คัดลอกข้อความ',exact:true}).focus(); await page.keyboard.press('Enter'); await page.getByText('คัดลอกแล้ว — ยังไม่ได้ส่ง LINE และไม่ได้เปลี่ยนสถานะงาน',{exact:true}).waitFor(); results.clipboard=(await page.evaluate(()=>navigator.clipboard.readText())).includes('สิงหาคม'); results.copyPosts=writes;
+ const task={id:'manual-example-only',siteId:'example',siteName:'ตัวอย่างคู่มือ — ไม่ใช่งานจริง',originMonth:'2026-08',category:'production',title:'ตัวอย่าง: ขอให้ช่างตรวจรายงาน',evidence:{reportPresent:true,inverterYieldKwh:null,capturedAt:'2026-09-10T00:00:00Z',source:'ข้อมูลตัวอย่างเพื่ออธิบายฟอร์ม'},status:'awaiting',version:1,createdBy:'ตัวอย่างผู้บันทึก',createdAt:'2026-09-10T00:00:00Z',events:[]};
+ await page.route('**/api/inspections**',route=>route.fulfill({json:{ok:true,records:[task],truncated:false}}));
+ await page.goto(base); await page.getByText('บันทึกความคืบหน้า / ผลตรวจ',{exact:true}).click();
+ const style='.as-topbar{visibility:hidden}nextjs-portal{display:none}';
+ await page.locator('.as-work-card').screenshot({path:'public/manual/v2/notified-example.png',style});
+ await page.getByLabel('สถานะที่จะบันทึก').selectOption('inspected'); await page.locator('.as-work-card').screenshot({path:'public/manual/v2/result-example.png',style});
+ await page.unroute('**/api/inspections**'); await page.reload(); await page.locator('.as-chart').waitFor(); results.allPosts=writes; page.off('request',listener); return results;
+}
+)(page);
+```
+### Page
+- Page URL: http://localhost:3100/?view=checks&month=2026-08&scope=source&site=RAG%20%E0%B8%AA%E0%B8%99%E0%B8%87.%E0%B8%81%E0%B8%9F%E0%B8%AA.%E0%B8%A3%E0%B8%B0%E0%B9%81%E0%B8%87%E0%B8%B0
+- Page Title: Solar Ops Dashboard
+### Events
+- New console entries: .playwright-cli/console-2026-09-09T20-22-41-397Z.log#L57-L64

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { FileText, Plus } from "lucide-react";
 import type { RepairRecord } from "@/src/types/maintenance";
 const outcomes: Record<RepairRecord["outcome"], string> = {
   unknown: "ยังไม่ทราบผล",
@@ -73,18 +74,26 @@ export default function MaintenanceHistory({ site }: { site: string }) {
     }
   }
   return (
-    <section className="as-panel">
-      <h2>ประวัติซ่อมและการดำเนินการ</h2>
+    <section className="as-panel as-maintenance">
+      <h2>ไทม์ไลน์การซ่อม / การดำเนินการ</h2>
       <p>บันทึกจริงของไซต์นี้ · รวมทุกเดือน ล่าสุดไม่เกิน 200 รายการ</p>
-      <p className="as-muted">
-        AI ใช้บันทึกที่เกิดขึ้นไม่เกินเดือนที่กำลังวิเคราะห์ สูงสุด 50 รายการ
-        ข้อความบันทึกจะถูกส่งให้ Gemini
-        จึงไม่ควรใส่รหัสผ่านหรือข้อมูลส่วนตัวที่ไม่จำเป็น
-      </p>
+      <details className="as-repair-privacy">
+        <summary>การใช้ประวัติประกอบ AI</summary>
+        <p className="as-muted">
+          AI ใช้บันทึกที่เกิดขึ้นไม่เกินเดือนที่กำลังวิเคราะห์ สูงสุด 50 รายการ
+          ข้อความบันทึกจะถูกส่งให้ Gemini
+          จึงไม่ควรใส่รหัสผ่านหรือข้อมูลส่วนตัวที่ไม่จำเป็น
+        </p>
+      </details>
       {loading ? (
         <p role="status">กำลังอ่านประวัติ…</p>
-      ) : records.length === 0 ? (
-        <p>ยังไม่มีบันทึกซ่อม ไม่ได้หมายความว่าไซต์นี้ไม่เคยซ่อม</p>
+      ) : error && records.length === 0 ? null : records.length === 0 ? (
+        <div className="as-empty-history">
+          <FileText size={34} />
+          <h3>ยังไม่มีบันทึกซ่อม</h3>
+          <p>บันทึกการซ่อม การแก้ไข หรือการดำเนินการจะแสดงที่นี่</p>
+          <small>ไม่ได้หมายความว่าไซต์นี้ไม่เคยซ่อม</small>
+        </div>
       ) : (
         <ol className="as-repair-timeline">
           {records.map((r) => (
@@ -116,7 +125,9 @@ export default function MaintenanceHistory({ site }: { site: string }) {
       )}
       {success && <p role="status">{success}</p>}
       <details>
-        <summary>เพิ่มบันทึกซ่อมจริง</summary>
+        <summary className="as-add-repair">
+          <Plus size={18} /> เพิ่มบันทึกซ่อมจริง
+        </summary>
         <form onSubmit={save} className="as-maintenance-form">
           <label>
             วันที่ตรวจหรือดำเนินการ

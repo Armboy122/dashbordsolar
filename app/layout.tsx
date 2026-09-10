@@ -7,16 +7,22 @@ import { Navbar } from "@/src/components/navbar";
 import { AntdProvider } from "@/src/components/antd-provider";
 
 export const metadata: Metadata = {
-  title: "Solar Ops Dashboard",
+  title: "AnalysisSolar — Inspection Desk",
   description: "Minimal inverter-first dashboard for solar site analysis",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="th">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
         <link
           href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap"
           rel="stylesheet"

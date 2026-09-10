@@ -1,43 +1,36 @@
-# Inspection Desk design QA — 9 September 2026
+# Inspection Desk fidelity QA — 10 September 2026
 
-**Final result: passed**
+**Source:** `artifacts/inspection-desk-fidelity/reference.png` — exact user attachment, 1487×1058.
+**Implementation:** `artifacts/inspection-desk-fidelity/detail-final.png`, 1487×1058 CSS pixels, DPR 1. No density scaling in the saved comparison.
+**State:** checks, February 2026, source scope, the corresponding สำนักงาน สฟต.3 site. The reference uses illustrative values/names; implementation uses actual API records. Real zero/partial history cannot reproduce the invented reference curve. The roster's source month is August because that is the actual verified roster in the database.
+**Full comparison:** `artifacts/inspection-desk-fidelity/comparison.png` contains both images side by side.
+**Focused comparison:** `artifacts/inspection-desk-fidelity/comparison-focus.png` contains header/chart/KPIs at native scale; `detail-full.png` exposes all three panels and additional persisted workflow below them.
 
-Source visual truth: `/Users/sakdithat/.codex/generated_images/01a085b4-a3ed-7fe3-95c9-7015684840e8/exec-38ce0a94-d3c9-4250-a60d-372a60672da7.png` (selected displayed option 2).
-Implementation: `artifacts/inspection-desk/comparison-desktop.png`.
-Both source and comparison are 1487 × 1058 pixels; browser CSS viewport 1487 × 1058, deviceScaleFactor 1. No density normalization. Additional required QA at 1440 × 1050 and 390 × 1050, full-page captures in `artifacts/inspection-desk/`.
+## Findings and iteration history
+1. P1 fixed: `/` still rendered V1. It now shares the V2 page with `/prototype`.
+2. P1 fixed: floating rail and two-column facts/repair with AI spanning a separate row did not match the selected composition. Rail now touches the left edge at 310px, main starts x336 at reference size, and facts/maintenance/AI have three adjacent columns.
+3. P2 fixed: first rendered chart and duplicate month labels pushed operational panels out of view (`detail-initial.png`). Removed duplicate SVG labels, retained keyboard month controls, shortened plot, moved detailed scope/text into disclosures, and placed KPIs inside chart (`detail-revised.png` → `detail-final.png`).
+4. P2 fixed: help inherited the new left margin despite having no rail. Help now centers independently; mobile overflow check passed.
+5. P2 fixed: manual form screenshots used obsolete crop offsets. Pages 12–13 now show the actual findings/action and outcome/evidence controls.
 
-State: February 2026, source roster, selected long Thai site สำนักงาน สฟต.3. Source is a concept with example data; implementation is actual API data with no repair records for the site. Full images were opened together for comparison. Inspected header/control/long-name and chart regions at readable viewport size; full-page captures used for mobile flow and lower sections.
+## Required fidelity surfaces
+- **Fonts/typography:** Sarabun retained; navy 28px site heading, 18–19px panel headings, compact secondary labels; Thai names wrap. Mobile body in operational panels is 14px with 1.65 line height. Browser month input displays Gregorian year, while report labels use Thai Buddhist year; both refer to the same stored month.
+- **Spacing/layout:** header 69px, rail 310px, main x336 at 1487 width, thin borders and 7px panel radii. Full-width chart followed by three operational columns. Chart is 426px versus approximately 372px in the reference because real comparison controls, null explanations and accessible data disclosures remain. Coverage is a separate compact strip to retain scope selection. This is an intentional functional accommodation, not a claim of pixel identity. Extra persisted work forms below the reference area are preserved.
+- **Colors/tokens:** white background, dark green actions/series, orange Sun logo, navy text, blue-gray boundaries. Prior-year series has both amber color and dashed/hatch pattern; visible legend is shown when comparison is active. Data quality and legacy assessment labels remain separate from work status.
+- **Images/icons:** the reference contains standard outline icons rather than photo assets. Existing Lucide Sun/FileText/ClipboardCheck/Brain/Info icons are used, without invented avatar or illustrative artwork. Chart SVG is actual data visualization, not an image substitute.
+- **Copy/content:** facts, possible causes and next checks are separate. No fabricated site metadata, repairs, authentication, AI output, sync success or daily average. Existing saved AI output remains labelled unconfirmed. Actual partial history explains differences in curve, capacity and KPI values.
 
-## Findings and fixes
+## Interaction/accessibility checks
+Four pages at 1440px and 390px; no document overflow. Mobile site picker, real long Thai site name, month/scope preservation, graph bar toggle, graph text table, keyboard copy and help tested. Copy observed zero POST requests. Empty search, server-error retry UI, missing values and real AI-empty/saved states checked. Browser console had only the intentional simulated HTTP 500 error during error-state QA; no application runtime error seen. Native controls retain labels and visible focus. This is a targeted browser review, not a full automated accessibility audit or a new backend-write test.
 
-- P1 resolved: initial inherited sidebar flex direction stacked navigation vertically. Changed to horizontal top navigation matching the reference.
-- P2 resolved: full AI evidence expanded by default produced an excessively tall single column. Kept summary visible and put detailed hypotheses/evidence behind an explicit disclosure, with saved result history available separately.
-- P2 resolved: initial detail headings pushed the chart below the fold. Moved desktop month/scope/coverage beside selected-site heading, keeping source month visible.
-- P2 resolved: limiting SVG height shrank the plot into the middle of the available width. The chart now measures its width with ResizeObserver and computes positions for the actual viewport; Thai labels and values keep readable sizing on mobile.
-- P2 resolved: report copy still said imports were unavailable. Updated it to distinguish real imports/repair storage from unavailable edit/sync/export functions.
-- Verification: captured the final desktop comparison and all four pages at both required widths after fixes. No horizontal page overflow in any of the eight page captures. Mobile detail and blank repair form also captured.
+## Follow-up polish
+P3: native month-picker typography differs between browsers. Further pixel-level compacting of the provenance area can be considered after user review; do not remove provenance to force identical dimensions.
 
-## Fidelity surfaces
-
-- Typography: existing Sarabun used for Thai, clear 25–30px selected-site/page headings, 14–16px body, smaller provenance. Long names wrap instead of clipping. No attempt to reproduce malformed or invented text in generated source.
-- Layout: horizontal top navigation, approximately 250px site rail, full-width chart above three operational columns. Mobile stacks these sections and uses site cards. Actual evidence and explicit provenance make the page taller than the concept; this is accepted to satisfy the user's data requirements.
-- Colors/tokens: white and neutral surfaces, dark green action/graph, subtle borders, amber/red/text labels for legacy signals. Prior-year graph uses amber dashed line. Status is not communicated by color alone.
-- Images/assets: source has no photos or custom illustrations requiring raster assets. Existing Sun/Building/Info and other library icons retained. Charts are live data visualizations, not decorative mockup assets. No invented user avatar/authentication or company/location metadata.
-- Content: source example figures, positive trend claims, capacity and location were deliberately not copied. Real selected-site yield is zero and several historical months are absent, so chart gaps and explicit uncertainty are required. Portfolio coverage is labelled in sites, distinct from selected-site graph. Legacy scoring labels stay identified as legacy and not mapped to new priority.
-
-## Functional and data QA
-
-- Navigation all four pages, selected-month/scope persistence entering and returning from a site.
-- Keyboard focus/Enter on LINE copy; no POST on copy or return navigation. No automatic notification status.
-- Real saved AI result and repair empty state loaded. No generation on ordinary navigation.
-- Failed repair save mocked in browser: failure message displayed, typed textarea remains; mock removed and page reloaded afterward. No QA repair inserted into DB. One expected HTTP 500 console entry from this fault injection; normal page captures showed no runtime errors.
-- Provider live request and persisted queue result checked separately on existing real report. Import→queue tested with mocked DB to avoid overwriting actual monthly data.
-- Typecheck, 126 tests and production build pass; logs in `artifacts/auto-analysis/`.
-
-## Follow-up polish and limits
-
-P3: consolidate the inherited prototype stylesheet and fine-tune dense desktop evidence spacing after user review. The source includes download/avatar controls without implemented backing; these were omitted rather than shown as functioning. No new priority rules, formula changes, or fake maintenance data. Full production auth, immutable import revisions and durable multi-host worker deployment are separate backend work.
-
-Implementation checklist completed: horizontal navigation; source/month preserved; chart responsive; evidence disclosures; actual maintenance persistence; saved AI history; desktop/mobile capture; failure checks; test/build logs.
+## Implementation checklist
+- [x] Shared V2 default route and four-page shell.
+- [x] Reference-based chart-first detail and three operational columns.
+- [x] Real backend behavior preserved; mock form images isolated.
+- [x] Desktop/mobile evidence, typecheck, 153 tests, production build.
+- [x] Revised 16-page A4 PDF and web help.
 
 final result: passed
